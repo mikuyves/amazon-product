@@ -1,20 +1,48 @@
 # coding=utf-8
 import re
+import json
+import time
 from lxml import html
 import requests
 from amazon.api import AmazonAPI
 import bottlenose.api
-from secret import AMZ_ACCESS_KEY, AMZ_SECRET_KEY, AMZ_ASSOC_TAG
+
+import bottlenose
+from bs4 import BeautifulSoup
+from amazon_scraper import AmazonScraper
+
+from secret import AMZ_ACCESS_KEY, AMZ_SECRET_KEY, AMZ_ASSOC_TAG, AMZ_ACCESS_KEY2, AMZ_SECRET_KEY2, AMZ_ASSOC_TAG2
+
+import random
+import time
+from urllib2 import HTTPError
 
 
-region_options = bottlenose.api.SERVICE_DOMAINS.keys()
-amazon = AmazonAPI(
-    AMZ_ACCESS_KEY,
-    AMZ_SECRET_KEY,
-    AMZ_ASSOC_TAG,
-    region='CN',
-    MaxQPS=0.9
-)
+def error_handler(err):
+    ex = err['exception']
+    if isinstance(ex, HTTPError) and ex.code == 503:
+        time.sleep(random.expovariate(0.1))
+        return True
+
+
+auth_args = [AMZ_ACCESS_KEY, AMZ_SECRET_KEY, AMZ_ASSOC_TAG]
+auth_kwargs = {
+    'Region': 'CN',
+    'MaxQPS': 0.9,
+    'Timeout': 5.0,
+    'ErrorHandler': error_handler}
+
+
+# region_options = bottlenose.api.SERVICE_DOMAINS.keys()
+
+amz_product = AmazonAPI(*auth_args, **auth_kwargs)
+
+amz_scraper = AmazonScraper(*auth_args, **auth_kwargs)
+
+amz_nose = bottlenose.Amazon(
+    Parser=lambda text: BeautifulSoup(text, 'xml')
+    *auth_args,
+    **auth_kwargs)
 
 
 def search_products(keywords, search_index):
@@ -31,12 +59,72 @@ def print_products(products):
             f.write(line + '\n')
 
 
+def url2id(url):
+    url_re = re.compile(r'/dp/(\S+)/')
+    return url_re.search(url).group(1)
+
+
+def id2url(id):
+    return 'https://www.amazon.cn/dp/{id}/'.format(id=id)
+
+
+def trans_url(copied_url):
+    return id2url(url2id(copied_url))
+
+
+def get_html_doc(url):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36'
+    }
+    response = requests.get(
+        url,
+        headers=headers)
+    return html.fromstring(response.content)
+
+
+def get_spu_and_skus(url):
+    # pattern = re.compile(r"var dataToReturn = ({((\n|.)*)});", re.MULTILINE)
+    url = trans_url(url)
+    doc = get_html_doc(url)
+
+    # 产品 SPU 及 SKU 数据的 scirpt 标签内容。
+    scripts= [s for s in doc.xpath('//script/text()') if 'dataToReturn' in s]
+    script = scripts[0]
+
+    # SKU 列表及详情。
+    spu_re = re.compile(r'"parentAsin" : "(.*)"')
+    spu_id = spu_re.search(script).group(1)
+
+    # SKU 数据格式：
+    # key: asin  :  value: [尺寸1， 尺寸2， 颜色]
+    # B01IJWFCQC [u'Baby', u'9 \u4e2a\u6708', u'Best Day Evert']
+    sku_re = re.compile(r'"dimensionValuesDisplayData" : (.*),')
+    sku_raw_data = sku_re.search(script).group(1)
+    skus = json.loads(sku_raw_data)
+    return [spu_id, skus]
+
+
 def find_big_picture(url):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36'
     }
     page = requests.get(url,headers=headers)
     return page
+
+
+def get_products_by_ids(ids):
+    products = []
+    for id in ids:
+        p = amz_product.lookup(ItemId=id)
+        print p.asin, p.title, p.price_and_currency
+        products.append(p)
+    return products
+
+
+def get_products_from_url(url):
+    data = get_spu_and_skus(url)
+    ids = [data[0]] + data[1].keys()
+    return get_products_by_ids(ids)
 
 
 def get_content(item_id):
