@@ -15,7 +15,7 @@ from secret import AMZ_ACCESS_KEY, AMZ_SECRET_KEY, AMZ_ASSOC_TAG, AMZ_ACCESS_KEY
 
 import random
 import time
-from urllib2 import HTTPError
+from urllib.error import HTTPError
 
 
 def error_handler(err):
@@ -55,7 +55,7 @@ def print_products(products):
     with open('result.txt', 'w') as f:
         for i, product in enumerate(products):
             line = "{0}. '{1}'".format(i, product.title.encode('utf8'))
-            print line
+            print(line)
             f.write(line + '\n')
 
 
@@ -116,20 +116,20 @@ def get_products_by_ids(ids):
     products = []
     for id in ids:
         p = amz_product.lookup(ItemId=id)
-        print p.asin, p.title, p.price_and_currency
+        print(p.asin, p.title, p.price_and_currency)
         products.append(p)
     return products
 
 
 def get_products_from_url(url):
     data = get_spu_and_skus(url)
-    ids = [data[0]] + data[1].keys()
+    ids = [data[0]] + list(data[1].keys())
     return get_products_by_ids(ids)
 
 
 def get_content(item_id):
     url = "http://www.amazon.cn/dp/" + item_id
-    print "Processing: "+url
+    print("Processing: "+url)
     headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.90 Safari/537.36'}
     page = requests.get(url,headers=headers)
     doc = html.fromstring(page.content)
