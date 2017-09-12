@@ -5,3 +5,10 @@
     </span>
 </td>
 ```
+
+## Leancloud
+
+返回结果可以直接返回 dict, list
+结果会经过 JSON 系列化后 
+在 result 里面
+

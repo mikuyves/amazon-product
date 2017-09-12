@@ -202,4 +202,3 @@ if __name__ == '__main__':
     ''')
     products = search_products(keywords, search_index)
     print_products(products)
-
