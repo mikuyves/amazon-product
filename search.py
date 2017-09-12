@@ -41,12 +41,8 @@ amz_scraper = AmazonScraper(*auth_args, **auth_kwargs)
 
 amz_nose = bottlenose.Amazon(
     Parser=lambda text: BeautifulSoup(text, 'xml')
-    *auth_args,
+                        *auth_args,
     **auth_kwargs)
-
-
-def search_products(keywords, search_index):
-    return amazon.search(Keywords=keywords, SearchIndex=search_index)
 
 
 def print_products(products):
@@ -60,8 +56,8 @@ def print_products(products):
 
 
 def url2id(url):
-    url_re = re.compile(r'/dp/(\S+)/')
-    return url_re.search(url).group(1)
+    url_re = re.compile(r'/(dp|gp/product)/(\S+)/(ref)?')
+    return url_re.search(url).group(2)
 
 
 def id2url(id):
@@ -84,24 +80,30 @@ def get_html_doc(url):
 
 def get_spu_and_skus(url):
     # pattern = re.compile(r"var dataToReturn = ({((\n|.)*)});", re.MULTILINE)
-    url = trans_url(url)
+    item_id = url2id(url)
+    url = id2url(item_id)
     doc = get_html_doc(url)
 
     # 产品 SPU 及 SKU 数据的 scirpt 标签内容。
     scripts= [s for s in doc.xpath('//script/text()') if 'dataToReturn' in s]
-    script = scripts[0]
+    if scripts:
+        script = scripts[0]
 
-    # SKU 列表及详情。
-    spu_re = re.compile(r'"parentAsin" : "(.*)"')
-    spu_id = spu_re.search(script).group(1)
+        # SKU 列表及详情。
+        spu_re = re.compile(r'"parentAsin" : "(.*)"')
+        spu_id = spu_re.search(script).group(1)
 
-    # SKU 数据格式：
-    # key: asin  :  value: [尺寸1， 尺寸2， 颜色]
-    # B01IJWFCQC [u'Baby', u'9 \u4e2a\u6708', u'Best Day Evert']
-    sku_re = re.compile(r'"dimensionValuesDisplayData" : (.*),')
-    sku_raw_data = sku_re.search(script).group(1)
-    skus = json.loads(sku_raw_data)
-    return [spu_id, skus]
+        # SKU 数据格式：
+        # key: asin  :  value: [尺寸1， 尺寸2， 颜色]
+        # B01IJWFCQC [u'Baby', u'9 \u4e2a\u6708', u'Best Day Evert']
+        sku_re = re.compile(r'"dimensionValuesDisplayData" : (.*),')
+        sku_raw_data = sku_re.search(script).group(1)
+        skus = json.loads(sku_raw_data)
+        return [spu_id, skus]
+
+    else:
+        print('This product has no SKU.')
+        return [item_id]
 
 
 def find_big_picture(url):
@@ -118,12 +120,40 @@ def get_products_by_ids(ids):
         p = amz_product.lookup(ItemId=id)
         print(p.asin, p.title, p.price_and_currency)
         products.append(p)
-    return products
+    return product_data_to_json(products)
+
+
+def product_data_to_json(data):
+    if len(data) == 1:
+        p_data = data[0]
+        prod = {
+            'name': p_data.title,
+            'price': float(p_data.price_and_currency[0])
+        }
+        skus = [prod]
+    if len(data) > 1:
+        p_data = data.pop(0)
+        prod = {
+            'name': p_data.title,
+            'max_price': max([float(d.price_and_currency[0]) for d in data]),
+            'min_price': min([float(d.price_and_currency[0]) for d in data]),
+        }
+        skus = []
+        for d in data:
+            sku = {
+                'full_name': d.title,
+                'price': float(d.price_and_currency[0])
+            }
+            skus.append(sku)
+    return {'prod': prod, 'skus': skus}
 
 
 def get_products_from_url(url):
     data = get_spu_and_skus(url)
-    ids = [data[0]] + list(data[1].keys())
+    if len(data) == 1:
+        ids = data
+    elif len(data) ==2:
+        ids = [data[0]] + list(data[1].keys())
     return get_products_by_ids(ids)
 
 
@@ -172,3 +202,4 @@ if __name__ == '__main__':
     ''')
     products = search_products(keywords, search_index)
     print_products(products)
+
