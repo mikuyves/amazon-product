@@ -1,7 +1,9 @@
 # coding=utf-8
 import re
 import json
+import random
 import time
+from urllib.error import HTTPError
 from lxml import html
 import requests
 from amazon.api import AmazonAPI
@@ -10,14 +12,22 @@ import bottlenose.api
 import bottlenose
 from bs4 import BeautifulSoup
 from amazon_scraper import AmazonScraper
+import leancloud
+from fake_useragent import UserAgent
 
-from secret import AMZ_ACCESS_KEY, AMZ_SECRET_KEY, AMZ_ASSOC_TAG, AMZ_ACCESS_KEY2, AMZ_SECRET_KEY2, AMZ_ASSOC_TAG2
+from secret import AMZ_ACCESS_KEY, AMZ_SECRET_KEY, AMZ_ASSOC_TAG,\
+    AMZ_ACCESS_KEY2, AMZ_SECRET_KEY2, AMZ_ASSOC_TAG2,\
+    LC_APP_ID, LC_APP_KEY
+from models import Prod, Sku
 
-import random
-import time
-from urllib.error import HTTPError
+
+# 初始化 Leancloud 应用。
+leancloud.init(LC_APP_ID, LC_APP_KEY)
+
+ua = UserAgent()
 
 
+# 处理 amazon api 经常性的 503 错误。
 def error_handler(err):
     ex = err['exception']
     if isinstance(ex, HTTPError) and ex.code == 503:
@@ -25,24 +35,118 @@ def error_handler(err):
         return True
 
 
-auth_args = [AMZ_ACCESS_KEY, AMZ_SECRET_KEY, AMZ_ASSOC_TAG]
-auth_kwargs = {
+# Amazon api 验证资料。
+AUTH_ARGS = [AMZ_ACCESS_KEY, AMZ_SECRET_KEY, AMZ_ASSOC_TAG]
+# Amazon api 请求设置。
+AUTH_KWARGS = {
     'Region': 'CN',
     'MaxQPS': 0.9,
     'Timeout': 5.0,
     'ErrorHandler': error_handler}
 
-
 # region_options = bottlenose.api.SERVICE_DOMAINS.keys()
 
-amz_product = AmazonAPI(*auth_args, **auth_kwargs)
+amz_product = AmazonAPI(*AUTH_ARGS, **AUTH_KWARGS)
 
-amz_scraper = AmazonScraper(*auth_args, **auth_kwargs)
+amz_scraper = AmazonScraper(*AUTH_ARGS, **AUTH_KWARGS)
 
 amz_nose = bottlenose.Amazon(
     Parser=lambda text: BeautifulSoup(text, 'xml'),
-    *auth_args,
-    **auth_kwargs)
+    *AUTH_ARGS,
+    **AUTH_KWARGS)
+
+
+class AmzProduct(object):
+    def __init__(self, url):
+        # 处理基本信息： url 和 asin。
+        self.raw_url = url
+        self.item_id = self.url2id(url)
+        self.url = self.id2url(self.item_id)
+
+        # 抓取网页源代码内容。
+        print('\n>>> Parsing item URL...')
+        self.page_doc = get_html_doc(self.url)
+        print('\n>>> Sleep for 0.9s...')
+        time.sleep(0.9)
+        # 通过 amazon api 获取 asin=item_id 的商品信息。可能是 prod 的 spu 或 其中一个 sku。
+        print('\n>>> Getting info from Amazon api...')
+        self.item_api = self.lookup_by_asin(self.item_id)
+
+        # 生成 spu 和 sku。
+        print('\n>>> Initializing SPU and SKU...')
+        self.spu, self.sku_list = self.init_spu_and_sku()
+        # 获取此 item_id 的高清大图。如果此商品有其他 sku 则需要另外获取。
+        print('\n>>> Initializing item HiRes pictures...')
+        self.init_hires_pic_urls()
+
+    def lookup_by_asin(self, asin):
+        p = AmazonAPI(*AUTH_ARGS, **AUTH_KWARGS)
+        return p.lookup(ItemId=asin)
+
+    def url2id(self, url):
+        url_re = re.compile(r'/(dp|gp/product)/(\S{,10})/(ref)?')
+        return url_re.search(url).group(2)
+
+    def id2url(self, id):
+        return 'https://www.amazon.cn/dp/{id}/'.format(id=id)
+
+    def init_spu_and_sku(self):
+        # pattern = re.compile(r"var dataToReturn = ({((\n|.)*)});", re.MULTILINE)
+        # 产品 SPU 及 SKU 数据的 scirpt 标签内容。
+        scripts= [s for s in self.page_doc.xpath('//script/text()') if 'dataToReturn' in s]
+        if scripts:
+            script = scripts[0]
+
+            # 处理 SPU。
+            spu_re = re.compile(r'"parentAsin" : "(.*)"')
+            spu_asin = spu_re.search(script).group(1)
+            spu = {'asin': spu_asin}
+
+            # 处理 SKU。
+            # SKU 数据格式：
+            # key: asin  :  value: [尺寸1， 尺寸2， 颜色]
+            # B01IJWFCQC [u'Baby', u'9 \u4e2a\u6708', u'Best Day Evert']
+            sku_re = re.compile(r'"dimensionValuesDisplayData" : (.*),')
+            sku_raw_data = sku_re.search(script).group(1)
+            sku_dict = json.loads(sku_raw_data)
+
+            sku_list = []
+            for asin, names in sku_dict.items():
+                sku = {
+                    'asin': asin,
+                    'name': '-'.join(names),
+                    'url': self.id2url(asin)
+                }
+                sku_list.append(sku)
+
+        else:
+            print('This product has no SKU.')
+            spu = {'asin': self.item_id}
+            sku_list = [spu]
+
+        print('Got SPU and SKU.')
+        print(spu)
+        print(sku_list)
+        return [spu, sku_list]
+
+    def get_hires_pic_urls(self, page_doc):
+        # script 标签里面的内容。
+        scripts = page_doc.xpath('//script/text()')
+        # 匹配 url 的正则表达式。
+        url_re = re.compile(r'hiRes":"(\S{,200})","thumb')
+        # 一般会有两组结果，遇到有结果的返回，注意：这里忽略了第二组。
+        for s in scripts:
+            urls = url_re.findall(s)
+            if urls:
+                return urls
+
+    def init_hires_pic_urls(self):
+        urls = self.get_hires_pic_urls(self.page_doc)
+        for sku in self.sku_list:
+            if sku.get('asin') == self.item_id:
+                sku['hires_pics'] = urls
+                print('\n>>> Got HiRes pictures of %s:' % self.item_id)
+                print(urls)
 
 
 def print_products(products):
@@ -55,55 +159,14 @@ def print_products(products):
             f.write(line + '\n')
 
 
-def url2id(url):
-    url_re = re.compile(r'/(dp|gp/product)/(\S+)/(ref)?')
-    return url_re.search(url).group(2)
-
-
-def id2url(id):
-    return 'https://www.amazon.cn/dp/{id}/'.format(id=id)
-
-
-def trans_url(copied_url):
-    return id2url(url2id(copied_url))
-
-
 def get_html_doc(url):
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36'
+        'User-Agent': ua.random
     }
     response = requests.get(
         url,
         headers=headers)
     return html.fromstring(response.content)
-
-
-def get_spu_and_skus(url):
-    # pattern = re.compile(r"var dataToReturn = ({((\n|.)*)});", re.MULTILINE)
-    item_id = url2id(url)
-    url = id2url(item_id)
-    doc = get_html_doc(url)
-
-    # 产品 SPU 及 SKU 数据的 scirpt 标签内容。
-    scripts= [s for s in doc.xpath('//script/text()') if 'dataToReturn' in s]
-    if scripts:
-        script = scripts[0]
-
-        # SKU 列表及详情。
-        spu_re = re.compile(r'"parentAsin" : "(.*)"')
-        spu_id = spu_re.search(script).group(1)
-
-        # SKU 数据格式：
-        # key: asin  :  value: [尺寸1， 尺寸2， 颜色]
-        # B01IJWFCQC [u'Baby', u'9 \u4e2a\u6708', u'Best Day Evert']
-        sku_re = re.compile(r'"dimensionValuesDisplayData" : (.*),')
-        sku_raw_data = sku_re.search(script).group(1)
-        skus = json.loads(sku_raw_data)
-        return [spu_id, skus]
-
-    else:
-        print('This product has no SKU.')
-        return [item_id]
 
 
 def find_big_picture(url):
@@ -138,6 +201,11 @@ def product_data_to_json(data):
             'max_price': max([float(d.price_and_currency[0]) for d in data]),
             'min_price': min([float(d.price_and_currency[0]) for d in data]),
         }
+        # 保存到 Leancloud。
+        lc_prod = Prod()
+        lc_prod.set(prod)
+        lc_prod.save()
+
         skus = []
         for d in data:
             sku = {
@@ -145,6 +213,12 @@ def product_data_to_json(data):
                 'price': float(d.price_and_currency[0])
             }
             skus.append(sku)
+            # 保存到 Leancloud。
+            # 保存到 Leancloud。
+            lc_sku = Sku()
+            lc_sku.set(sku)
+            lc_sku.save()
+
     return {'prod': prod, 'skus': skus}
 
 
