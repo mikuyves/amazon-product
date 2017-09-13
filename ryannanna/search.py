@@ -148,6 +148,30 @@ class AmzProduct(object):
                 print('\n>>> Got HiRes pictures of %s:' % self.item_id)
                 print(urls)
 
+    @property
+    def is_prime(self):
+        return self.item_api._safe_get_element_text('Offers.Offer.OfferListing.IsEligibleForPrime')
+
+    @property
+    def store_id(self):
+        return self.item_api._safe_get_element_text('SellerListing.Seller.StoreId')
+
+    @property
+    def store_name(self):
+        return self.item_api._safe_get_element_text('SellerListing.Seller.StoreName')
+
+    @property
+    def title(self):
+        return self.item_api.title
+
+    @property
+    def brand(self):
+        return self.item_api.brand
+
+    @property
+    def brand(self):
+        return self.item_api.brand
+
 
 def print_products(products):
     # product.featrues: List: 商品详情
