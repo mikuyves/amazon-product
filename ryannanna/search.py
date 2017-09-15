@@ -327,6 +327,22 @@ class AmzProduct(object):
         leancloud.Object.save_all(skus)
         print('SKU saved.')
 
+        # 保存到 History。
+        self.lc_save_sku_history(skus)
+
+    def lc_save_sku_history(self, skus):
+        History = leancloud.Object.extend('History')
+        lines = []
+        for sku in skus:
+            line = History()
+            line.set('sku', sku)
+            line.set('asin', sku.get('asin'))
+            line.set('price', sku.get('price'))
+            line.set('is_instock', sku.get('is_instock'))
+            line.set('is_prime', sku.get('is_prime'))
+            lines.append(line)
+        leancloud.Object.save_all(lines)
+
 
 def print_products(products):
     with open('result.txt', 'w') as f:
@@ -424,5 +440,6 @@ if __name__ == '__main__':
         'Wireless',
         'WirelessAccessories'
     ]
-    url = input('Enter Amazon.cn URL: ')
+    # url = input('Enter Amazon.cn URL: ')
+    url = 'https://www.amazon.cn/%E6%AF%8D%E5%A9%B4%E7%94%A8%E5%93%81/dp/B0159W8OOW/ref=sr_1_1?s=amazon-global-store&ie=UTF8&qid=1505512954&sr=8-1&keywords=stephan+baby'
     p = AmzProduct(url)
