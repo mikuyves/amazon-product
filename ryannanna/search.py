@@ -1,4 +1,3 @@
-# coding=utf-8
 import re
 import json
 import pprint
@@ -15,6 +14,7 @@ from bs4 import BeautifulSoup
 from amazon_scraper import AmazonScraper
 import leancloud
 from fake_useragent import UserAgent
+from fake_useragent import FakeUserAgentError
 
 from secret import AMZ_ACCESS_KEY, AMZ_SECRET_KEY, AMZ_ASSOC_TAG,\
     AMZ_ACCESS_KEY2, AMZ_SECRET_KEY2, AMZ_ASSOC_TAG2, AMZ_COOKIE,\
@@ -29,8 +29,15 @@ leancloud.init(LC_APP_ID, LC_APP_KEY)
 user = leancloud.User()
 user.login(LC_USERNAME, LC_PASSWORD)
 
-ua = UserAgent(cache=False)
+try:
+    ua = UserAgent(
+        cache=False,
+        fallback='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.101 Safari/537.36'
+    )
+except FakeUserAgentError:
+    pass
 
+print(ua.random)
 
 # AMAZON
 # 处理 amazon api 经常性的 503 错误。
@@ -50,9 +57,7 @@ AUTH_KWARGS = {
     'ErrorHandler': error_handler}
 
 amz_product = AmazonAPI(*AUTH_ARGS, **AUTH_KWARGS)
-
 amz_scraper = AmazonScraper(*AUTH_ARGS, **AUTH_KWARGS)
-
 amz_nose = bottlenose.Amazon(
     Parser=lambda text: BeautifulSoup(text, 'xml'),
     *AUTH_ARGS,
@@ -135,7 +140,7 @@ class AmazonLookupItem(object):
 
 
 class AmzProduct(object):
-    def __init__(self, url):
+    def __init__(self, url, debug=False):
         # 处理基本信息： url 和 asin。
         self.raw_url = url
         self.item_id = self.url2id(url)
@@ -153,6 +158,10 @@ class AmzProduct(object):
         print('\n>>> Initializing SPU and SKU...')
         self.spu, self.sku_list = self.init_spu_and_sku()
 
+        if not debug:
+            self.parse_and_save()
+
+    def parse_and_save(self):
         # 获取所有 SKU 和 SPU 的详细数据。注意顺序，首先分析 SKU。
         self.parse_sku_list()
         self.parse_spu()
