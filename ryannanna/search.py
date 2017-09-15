@@ -29,7 +29,7 @@ leancloud.init(LC_APP_ID, LC_APP_KEY)
 user = leancloud.User()
 user.login(LC_USERNAME, LC_PASSWORD)
 
-ua = UserAgent()
+ua = UserAgent(cache=False)
 
 
 # AMAZON
