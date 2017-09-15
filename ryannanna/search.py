@@ -17,25 +17,28 @@ import leancloud
 from fake_useragent import UserAgent
 
 from secret import AMZ_ACCESS_KEY, AMZ_SECRET_KEY, AMZ_ASSOC_TAG,\
-    AMZ_ACCESS_KEY2, AMZ_SECRET_KEY2, AMZ_ASSOC_TAG2,\
-    LC_APP_ID, LC_APP_KEY
-from models import Prod, Sku
+    AMZ_ACCESS_KEY2, AMZ_SECRET_KEY2, AMZ_ASSOC_TAG2, AMZ_COOKIE,\
+    LC_APP_ID, LC_APP_KEY, LC_USERNAME, LC_PASSWORD
 
-COOKIE = 'amznacsleftnav-48d7533c-de56-3cba-938d-d0cc3a768cb7=1; amznacsleftnav-06e17069-7503-3692-b959-7d3aef8ce92c=1,5; __utma=164006624.836544999.1503952096.1504989263.1504991980.3; __utmz=164006624.1504991980.3.3.utmccn=(referral)|utmcsr=docs.aws.amazon.com|utmcct=/AWSECommerceService/latest/GSG/GettingStarted.html|utmcmd=referral; __utmv=164006624.vivian01-23; s_fid=40921BF39D240D33-29A4C77D01187C48; s_nr=1505002469874-Repeat; s_vnum=1935500993603%26vn%3D3; s_dslv=1505002469875; x-wl-uid=1ehYeIe6chM+z7t4O0bMSi2m+cWzISKIST07SWjj/QsNE93Rbtd44TD8sDdsRVtpbD4Nkh9mPQrDHnpnXb+p8tXJ8HFIyJ7ttynsRSRnCrqXipcMiCb8Wr9yH0D4FJlsa9jYDiMpWHNw=; amznacsleftnav-9f9844ea-0931-34d4-ab98-9eaac10dd320=1; amznacsleftnav-59c8e658-3621-3d71-8913-5ad0bd4d3143=1,6,7,8; UserPref=U5eErzEOh7Kb13ApetefsvOFijLFIYrE7wG7RCwoP7wGQ1lMFf9w69rJhITQ035KfS5bTxnWhipkjMUpL3cYbsMT7YmLAA2rU0ntq6niVBrTxmGdhlYmRy9dxbKMXHSDqVbwgp6f9d8J1R9+0wCaFUbUMkUuWOTcEGI76Z6p71ebAhFGXVBcQD3KCYi1kTVBgypf38cgmVYCADm8Evw7qQLdBbDcVBmBQ+ShyL4HzppoVWdSDU8ZaTRgYdzaGKNcnOyzfpU3uRXM+ykCXXVoCh1P11ysj27i6k2i+GfLCniJiEDlW81zeOaZeFj+ng/Ngs2+njz4nD25kOUGZmnSVh8APVlcfpfQVusMf7SR3CkGgEcGyx/LWwWd36Qv1gss5zinYoesgKM9IwgBCYtJSg30aisF+CkvFCkZ3pm1abn1Jp656f6Oy+FPOHn61so3; lc-acbcn=zh_CN; session-token="R6ASJ0cOxsmr9TOtfsMqgbSv1J51U9AjQGAf+l2/0XvUznNJbakqYo4OK0u2xvLW8PgWXVSt7NXutNLIQfQVGv15RS3p+6JzxOqdiLpBQZxRmX6WbsCDOp5OsbohbHgj7x+K+QSrIGLa2KcOnkoiuzcAWWeDcOF6RdBqUOgMRQZBUkCbZo7tb3DQw6EIV//NDL5swaZV58GnaNAPYceJbmGIiOUxVcjxhA06jx6MlPTBG8kz3hptxmilfC2QjT+m+oL13jOiKAk="; x-acbcn="8o@fXDFRx?KeaaBbpq3LzJ5ldYd@A8tpqqTQA0WfSJcEOIi7LDGZE8e40Et?b1sO"; at-main=Atza|IwEBIMMP70elSgNmjJZ0tLseGTTiqAiBENGXH5SlnSFYue1Ol3N4iBUK5kyYFnwzKzE9HpdQvYhJ_igjk6cFTyihZP1ZWAbKgyvw1pjYr3y_mTjkA6jFDYi09LIV0lmq9wUnNc7ZlBbes4cilDzjqtsEsST5s7CAtknoA59Gq1c5auqkOR_D9CrxS9DkeTOMLQLL6nqNk6-U5WCk48EHh1ZEv8mDa36KUpf4a36DV8l3Yw8q1HPP8hGr5wuO5JdJVYk5EDGyldx5WF0QG9BWpZ8u__HxVmLlE5nCPN488fT0pHfWjh2FjalmNiH_GFRiichpHRq9EP3PBHl1t2VzKxwKx3F71nQJ27FAzaALgrMbMtcar54_7M6E8ZZ8fA3tI-HV8iMe-h1FLdEV31sFNCpWuN65; sess-at-main="bDCi/6xsGf+yS4gsvMsDo+NGqvSP2cps8Hakj3+U3FQ="; csm-hit=s-4Q25V7ZV8QE3MFW0346M|1505357433973; ubid-acbcn=456-7902547-2180623; session-id-time=2082729601l; session-id=457-4897587-8039847'
 
+# Leancloud
 # 初始化 Leancloud 应用。
 leancloud.init(LC_APP_ID, LC_APP_KEY)
+
+# 登陆 Leancloud 应用。
+user = leancloud.User()
+user.login(LC_USERNAME, LC_PASSWORD)
 
 ua = UserAgent()
 
 
+# AMAZON
 # 处理 amazon api 经常性的 503 错误。
 def error_handler(err):
     ex = err['exception']
     if isinstance(ex, HTTPError) and ex.code == 503:
         time.sleep(random.expovariate(0.1))
         return True
-
 
 # Amazon api 验证资料。
 AUTH_ARGS = [AMZ_ACCESS_KEY, AMZ_SECRET_KEY, AMZ_ASSOC_TAG]
@@ -46,7 +49,16 @@ AUTH_KWARGS = {
     'Timeout': 5.0,
     'ErrorHandler': error_handler}
 
-# region_options = bottlenose.api.SERVICE_DOMAINS.keys()
+amz_product = AmazonAPI(*AUTH_ARGS, **AUTH_KWARGS)
+
+amz_scraper = AmazonScraper(*AUTH_ARGS, **AUTH_KWARGS)
+
+amz_nose = bottlenose.Amazon(
+    Parser=lambda text: BeautifulSoup(text, 'xml'),
+    *AUTH_ARGS,
+    **AUTH_KWARGS)
+
+
 class AmazonLookupItem(object):
     # Wrap all the useful api from AmazonAPI and add some new.
     def __init__(self, asin):
@@ -122,17 +134,6 @@ class AmazonLookupItem(object):
     #     return self.item_api.get_attributes('ClothingSize')
 
 
-
-amz_product = AmazonAPI(*AUTH_ARGS, **AUTH_KWARGS)
-
-amz_scraper = AmazonScraper(*AUTH_ARGS, **AUTH_KWARGS)
-
-amz_nose = bottlenose.Amazon(
-    Parser=lambda text: BeautifulSoup(text, 'xml'),
-    *AUTH_ARGS,
-    **AUTH_KWARGS)
-
-
 class AmzProduct(object):
     def __init__(self, url):
         # 处理基本信息： url 和 asin。
@@ -156,6 +157,7 @@ class AmzProduct(object):
         self.parse_sku_list()
         self.parse_spu()
         self.parse_hires_pic_urls()
+        self.lc_save()
 
     def __str__(self):
         if self.spu.get('name'):
@@ -297,6 +299,24 @@ class AmzProduct(object):
         print('''\n>>> Got SPU's HiRes pictures of %s:''' % asin)
         pprint.pprint(self.spu['hd_pics'])
 
+    def lc_save(self):
+        '''保存到 leancloud。'''
+        print('\n>>> Saving to Leancloud...')
+
+        # 保存 SPU。
+        Spu = leancloud.Object.extend('Spu')
+        spu = Spu()
+        spu.set(self.spu)
+        spu.save()
+        print('SPU saved.')
+
+        # 保存 SKU。
+        Sku = leancloud.Object.extend('Sku')
+        skus = [Sku().set(sku) for sku in self.sku_list]
+        skus = [sku.set('spu', spu) for sku in skus]
+        leancloud.Object.save_all(skus)
+        print('SKU saved.')
+
 
 def print_products(products):
     with open('result.txt', 'w') as f:
@@ -311,7 +331,7 @@ def get_html_doc(url):
     time.sleep(0.9)
     headers = {
         'User-Agent': ua.random,
-        'Cookie': COOKIE
+        'Cookie': AMZ_COOKIE
     }
     response = requests.get(
         url,
@@ -394,3 +414,5 @@ if __name__ == '__main__':
         'Wireless',
         'WirelessAccessories'
     ]
+    url = input('Enter Amazon.cn URL: ')
+    p = AmzProduct(url)

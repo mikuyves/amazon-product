@@ -1,7 +1,7 @@
 from lxml import html
 import csv,os,json
 import requests
-from exceptions import ValueError
+# from exceptions import ValueError
 from time import sleep
 
 
@@ -54,11 +54,11 @@ def AmzonParser(url):
 
 def ReadAsin():
     # AsinList = csv.DictReader(open(os.path.join(os.path.dirname(__file__),"Asinfeed.csv")))
-    AsinList = ['B005VIFUEC',
+    AsinList = ['B01H46KYTE',
     ]
     extracted_data = []
     for i in AsinList:
-        url = "http://www.amazon.cn/dp/"+i
+        url = "http://www.amazon.com/dp/"+i
         print("Processing: "+url)
         extracted_data.append(AmzonParser(url))
         sleep(5)
