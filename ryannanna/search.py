@@ -218,6 +218,7 @@ class AmzProduct(object):
             print('This product has no SKU.')
             spu = {
                 'asin': self.item_id,
+                'url': self.url
             }
             sku_list = [spu]
 
