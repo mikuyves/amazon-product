@@ -304,7 +304,7 @@ class AmzProduct(object):
             pprint.pprint(sku['hd_pics'])
 
         # 获取 SPU 高清图。
-        spu_asin = self.spu.get(asin)
+        asin = self.spu.get('asin')
         self.spu['hd_pics'] = self.get_hires_pic_urls(asin)
         print('''\n>>> Got SPU's HiRes pictures of %s:''' % asin)
         pprint.pprint(self.spu['hd_pics'])
