@@ -28,6 +28,7 @@ leancloud.init(LC_APP_ID, LC_APP_KEY)
 # 登陆 Leancloud 应用。
 user = leancloud.User()
 user.login(LC_USERNAME, LC_PASSWORD)
+print(user)
 
 # 初始化所需要的类。
 Sku = leancloud.Object.extend('Sku')
@@ -356,13 +357,20 @@ class AmzProduct(object):
                 # Update, Exists.
                 if results:
                     sku_obj = results[0]
+                    price = sku.get('price')
+                    previous_price = sku_obj.get('price')
+                    increment = price - previous_price
+                    change_rate = increment / previous_price
                     sku_obj.set(sku)
+                    sku_obj.set('increment', increment)
+                    sku_obj.set('change_rate', change_rate)
                 # Add, New.
                 else:
                     sku_obj = Sku()
                     sku_obj.set(sku)
                     sku_obj.set('spu', spu)
-                    sku_obj.set('is_new', True)
+                    sku_obj.set('increment', 0.0)
+                    sku_obj.set('change_rate', 0.0)
                     # Only new sku need to get hd pics advoiding HTML changed by Amazon.
                     hd_pic_urls = self.get_hires_pic_urls(sku.get('asin'))
                     sku_obj.set('hd_pics', hd_pic_urls)
@@ -399,24 +407,66 @@ class AmzProduct(object):
             line.set('price', sku.get('price'))
             line.set('is_instock', sku.get('is_instock'))
             line.set('is_prime', sku.get('is_prime'))
+            line.set('increment', sku.get('increment'))
+            line.set('change_rate', sku.get('change_rate'))
             lines.append(line)
         leancloud.Object.save_all(lines)
 
     # 对比历史价格，记录历史最高及最低价格。
     def check_history_price(self, skus):
         for sku in skus:
-            top_price = History.query\
+            price = sku.get('price')
+            lines = History.query\
                 .equal_to('sku', sku)\
-                .add_ascending('price')\
-                .select('price')\
-                .first().get('price')
-            bottom_price = History.query \
-                .equal_to('sku', sku) \
-                .add_descending('price') \
-                .select('price') \
-                .first().get('price')
+                .add_descending('updatedAt')\
+                .find()
+
+            prices  = [line.get('price') for line in lines]
+
+            top_price = max(prices)
+            bottom_price = min(prices)
+            is_top = price == top_price  # 历史新高
+            is_bottom = price == bottom_price  # 历史新低。
+
+            # 上一次记录价格。
+            if len(lines) == 1:
+                previous_price = price  # 未有记录。
+            elif len(lines) > 1:
+                previous_price = prices[1]  # 已有记录，排第二。
+            else:
+                # TODO: 提取成 exception。
+                print('There is something wrong with the SKU History.')
+                print('Please check ASIN: %s.' % sku.get('asin'))
+                continue
+
+            increment = price - previous_price  # 对比上一次记录的增量。
+            change_rate = increment / previous_price
+            history_increment = price - top_price  # 对比历史最高价的增量。
+            change_history_rate = history_increment / top_price
+
+            # 记录价格变化频率。
+            for line in lines:
+                change = line.get('increment')
+                last_change = change  # 最近一次价格变化量。即最近一次非零的 increment。
+                last_change_rate = line.get('change_rate')  # 最近一次价格变化率。
+                last_change_time = (
+                    lines[0].get('createdAt') - line.get('createdAt')
+                ).total_seconds()  # 对上一次更新价格持续的时间，单位为：秒。
+                # 一直查询至有增量变化记录为止。
+                if change:
+                    break
+
             sku.set('top_price', top_price)
             sku.set('bottom_price', bottom_price)
+            sku.set('is_top', is_top)
+            sku.set('is_bottom', is_bottom)
+            sku.set('increment', increment)
+            sku.set('change_rate', change_rate)
+            sku.set('history_increment', history_increment)
+            sku.set('change_history_rate', change_history_rate)
+            sku.set('last_change', last_change)
+            sku.set('last_change_rate', last_change_rate)
+            sku.set('last_change_time', last_change_time)
         leancloud.Object.save_all(skus)
 
 
