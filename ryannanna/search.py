@@ -29,6 +29,11 @@ leancloud.init(LC_APP_ID, LC_APP_KEY)
 user = leancloud.User()
 user.login(LC_USERNAME, LC_PASSWORD)
 
+# 初始化所需要的类。
+Sku = leancloud.Object.extend('Sku')
+Spu = leancloud.Object.extend('Spu')
+History = leancloud.Object.extend('History')
+
 try:
     ua = UserAgent(
         cache=False,
@@ -140,13 +145,22 @@ class AmazonLookupItem(object):
 
 
 class AmzProduct(object):
-    def __init__(self, url, debug=False):
+    def __init__(self, url, DEBUG=False):
         # 处理基本信息： url 和 asin。
         self.raw_url = url
         self.item_id = self.url2id(url)
         self.url = self.id2url(self.item_id)
 
+        # 判断是新建还是更新。
+        is_saved = self.check_is_saved()
+        if is_saved:
+            print('This item already exists in cloud data.')
+            print('Now, updating...\n')
+
         # 抓取网页源代码内容。
+        # 通过源码获取，spu 及 sku 信息，这一步一定要做。因为每次获取都可能会不同。
+        # 网页上数据会显示什么 sku 在售。如果更新的时候发现之前的 sku asin 不在
+        # 网页上，就表示这个 sku 已经不能购买。需要更新云端中 is_instock 的字段。
         print('\n>>> Parsing item URL...')
         self.response, self.page_doc = get_html_doc(self.url)
 
@@ -154,25 +168,31 @@ class AmzProduct(object):
         print('\n>>> Getting info from Amazon api...')
         self.item_api = AmazonLookupItem(self.item_id)
 
-        # 生成 spu 和 sku。
+        # 生成此 item 的 spu 和 sku_list。
         print('\n>>> Initializing SPU and SKU...')
         self.spu, self.sku_list = self.init_spu_and_sku()
 
-        if not debug:
-            self.parse_and_save()
+        if not DEBUG:
+            self.parse_and_save(update=is_saved)
 
-    def parse_and_save(self):
+    def parse_and_save(self, update=False):
         # 获取所有 SKU 和 SPU 的详细数据。注意顺序，首先分析 SKU。
         self.parse_sku_list()
         self.parse_spu()
-        self.parse_hires_pic_urls()
-        self.lc_save()
+        if not update:
+            self.parse_hires_pic_urls()
+        self.lc_save(update=update)
 
     def __str__(self):
         if self.spu.get('name'):
             return self.spu['name']
         else:
             return self.item_id
+
+    def check_is_saved(self):
+        spu_query = Spu.query.equal_to('asin', self.item_id).find()
+        sku_query = Sku.query.equal_to('asin', self.item_id).find()
+        return True if (spu_query or sku_query) else False
 
     def url2id(self, url):
         url_re = re.compile(r'/(dp|gp/product)/(\S{,10})/(ref)?')
@@ -274,6 +294,7 @@ class AmzProduct(object):
             self.spu['s_pic'] = item.small_pic
             self.spu['m_pic'] = item.medium_pic
             self.spu['l_pic'] = item.large_pic
+            self.spu['sku_number'] = len(self.sku_list)
 
             pprint.pprint(self.spu)
 
@@ -299,7 +320,10 @@ class AmzProduct(object):
         # 获取 SKU 高清图。
         for sku in self.sku_list:
             asin = sku.get('asin')
-            sku['hd_pics'] = self.get_hires_pic_urls(asin)
+            urls = self.get_hires_pic_urls(asin)
+            # 预防 amazon 修改 html。
+            if urls:
+                sku['hd_pics'] = urls
             print('''\n>>> Got SKU's HiRes pictures of %s:''' % asin)
             pprint.pprint(sku['hd_pics'])
 
@@ -309,29 +333,62 @@ class AmzProduct(object):
         print('''\n>>> Got SPU's HiRes pictures of %s:''' % asin)
         pprint.pprint(self.spu['hd_pics'])
 
-    def lc_save(self):
+    def lc_save(self, update=False):
         '''保存到 leancloud。'''
         print('\n>>> Saving to Leancloud...')
 
         # 保存 SPU。
-        Spu = leancloud.Object.extend('Spu')
-        spu = Spu()
+        if update:
+            spu = Spu.query.equal_to('asin', self.spu.get('asin')).first()
+        else:
+            spu = Spu()
         spu.set(self.spu)
         spu.save()
         print('SPU saved.')
 
         # 保存 SKU。
-        Sku = leancloud.Object.extend('Sku')
-        skus = [Sku().set(sku) for sku in self.sku_list]
-        skus = [sku.set('spu', spu) for sku in skus]
+        # 更新。
+        if update:
+            skus = []
+            for sku in self.sku_list:
+                results = Sku.query.equal_to('asin', sku.get('asin')).find()
+                # Update, Exists.
+                if results:
+                    sku_obj = results[0]
+                    sku_obj.set(sku)
+                # Add, New.
+                else:
+                    sku_obj = Sku()
+                    sku_obj.set(sku)
+                    sku_obj.set('spu', spu)
+                    sku_obj.set('is_new', True)
+                    # Only new sku need to get hd pics advoiding HTML changed by Amazon.
+                    hd_pic_urls = self.get_hires_pic_urls(sku.get('asin'))
+                    sku_obj.set('hd_pics', hd_pic_urls)
+                skus.append(sku_obj)
+
+            # Update, Old. Check SKU out of stock:
+            old_sku_objs = Sku.query.equal_to('spu', spu).find()
+            new_sku_asins = [sku.get('asin') for sku in self.sku_list]
+            for old_sku_obj in old_sku_objs:
+                if old_sku_obj.get('asin') not in new_sku_asins:
+                    old_sku_obj.set('is_instock', False)
+                    skus.append(old_sku_obj)
+
+        # 新建。
+        else:
+            skus = [Sku().set(sku) for sku in self.sku_list]
+            skus = [sku.set('spu', spu) for sku in skus]
+
         leancloud.Object.save_all(skus)
         print('SKU saved.')
 
-        # 保存到 History。
+        # 保存历史价格，prime 属性及库存情况。
         self.lc_save_sku_history(skus)
 
+
     def lc_save_sku_history(self, skus):
-        History = leancloud.Object.extend('History')
+        '''保存历史价格，prime 属性及库存情况。'''
         lines = []
         for sku in skus:
             line = History()
@@ -342,6 +399,11 @@ class AmzProduct(object):
             line.set('is_prime', sku.get('is_prime'))
             lines.append(line)
         leancloud.Object.save_all(lines)
+
+
+def update_item():
+    spu = Spu.query.add_ascending('updatedAt').first()
+    item = AmzProduct(spu.get('url'))
 
 
 def print_products(products):
