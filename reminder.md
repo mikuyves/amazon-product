@@ -41,6 +41,13 @@ leancloud.Object.save_all(sku_list)
 十分简单，保存后 prod 直接是一个有 id 的 leancloud 对象。
 不需要像 js 那样，赋值给一个变量再使用。
 
+返回 object 变 json 数据：
+```python
+import json
+
+json.dumps(object.dump())
+
+```
 
 
 Amazon Api

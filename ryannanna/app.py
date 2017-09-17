@@ -1,10 +1,12 @@
 # coding: utf-8
 
 from datetime import datetime
+import json
 
 from flask import Flask
 from flask import render_template
 from flask_sockets import Sockets
+import leancloud
 
 from views.todos import todos_view
 
@@ -14,6 +16,9 @@ sockets = Sockets(app)
 # 动态路由
 app.register_blueprint(todos_view, url_prefix='/todos')
 
+Spu = leancloud.Object.extend('Spu')
+Sku = leancloud.Object.extend('Sku')
+History = leancloud.Object.extend('History')
 
 @app.route('/')
 def index():
@@ -23,6 +28,14 @@ def index():
 @app.route('/time')
 def time():
     return str(datetime.now())
+
+
+@app.route('/pd/<asin>')
+def product(asin):
+    query = Sku.query
+    query.equal_to('asin', asin)
+    sku = query.first()
+    return json.dumps(sku.dump())
 
 
 @sockets.route('/echo')
