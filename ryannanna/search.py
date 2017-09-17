@@ -38,7 +38,8 @@ History = leancloud.Object.extend('History')
 try:
     ua = UserAgent(
         cache=False,
-        fallback='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.101 Safari/537.36'
+        use_cache_server=False,
+        fallback='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.101 Safari/537.36',
     )
 except FakeUserAgentError:
     pass
@@ -326,13 +327,13 @@ class AmzProduct(object):
             if urls:
                 sku['hd_pics'] = urls
             print('''\n>>> Got SKU's HiRes pictures of %s:''' % asin)
-            pprint.pprint(sku['hd_pics'])
+            pprint.pprint(sku.get('hd_pics'))
 
         # 获取 SPU 高清图。
         asin = self.spu.get('asin')
         self.spu['hd_pics'] = self.get_hires_pic_urls(asin)
         print('''\n>>> Got SPU's HiRes pictures of %s:''' % asin)
-        pprint.pprint(self.spu['hd_pics'])
+        pprint.pprint(self.spu.get('hd_pics'))
 
 
     # 保存到 leancloud。
@@ -417,12 +418,14 @@ class AmzProduct(object):
         for sku in skus:
             price = sku.get('price')
             lines = History.query\
-                .equal_to('sku', sku)\
+                .equal_to('sku', sku) \
                 .add_descending('updatedAt')\
                 .find()
 
             prices  = [line.get('price') for line in lines]
 
+            spu_max_price = self.spu.get('max_price')
+            off_to_spu = price / spu_max_price
             top_price = max(prices)
             bottom_price = min(prices)
             is_top = price == top_price  # 历史新高
@@ -446,9 +449,9 @@ class AmzProduct(object):
 
             # 记录价格变化频率。
             for line in lines:
-                change = line.get('increment')
+                change = line.get('increment', 0.0)
                 last_change = change  # 最近一次价格变化量。即最近一次非零的 increment。
-                last_change_rate = line.get('change_rate')  # 最近一次价格变化率。
+                last_change_rate = line.get('change_rate', 0.0)  # 最近一次价格变化率。
                 last_change_time = (
                     lines[0].get('createdAt') - line.get('createdAt')
                 ).total_seconds()  # 对上一次更新价格持续的时间，单位为：秒。
@@ -467,6 +470,7 @@ class AmzProduct(object):
             sku.set('last_change', last_change)
             sku.set('last_change_rate', last_change_rate)
             sku.set('last_change_time', last_change_time)
+            sku.set('off_to_spu', off_to_spu)
         leancloud.Object.save_all(skus)
 
 
@@ -475,6 +479,7 @@ def update_item(url=None):
         spu = Spu.query.add_ascending('updatedAt').first()
         url = spu.get('url')
     item = AmzProduct(url)
+    return item
 
 
 def print_products(products):
