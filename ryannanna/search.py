@@ -195,7 +195,7 @@ class AmzProduct(object):
         return True if (spu_query or sku_query) else False
 
     def url2id(self, url):
-        url_re = re.compile(r'/(dp|gp/product)/(\S{,10})/(ref)?')
+        url_re = re.compile(r'/(dp|gp/product)/(\S{,10})')
         return url_re.search(url).group(2)
 
     def id2url(self, id):
@@ -333,8 +333,9 @@ class AmzProduct(object):
         print('''\n>>> Got SPU's HiRes pictures of %s:''' % asin)
         pprint.pprint(self.spu['hd_pics'])
 
+
+    # 保存到 leancloud。
     def lc_save(self, update=False):
-        '''保存到 leancloud。'''
         print('\n>>> Saving to Leancloud...')
 
         # 保存 SPU。
@@ -385,10 +386,11 @@ class AmzProduct(object):
 
         # 保存历史价格，prime 属性及库存情况。
         self.lc_save_sku_history(skus)
+        # 更新历史最高及最低价格。
+        self.check_history_price(skus)
 
-
+    # 保存历史价格，prime 属性及库存情况。
     def lc_save_sku_history(self, skus):
-        '''保存历史价格，prime 属性及库存情况。'''
         lines = []
         for sku in skus:
             line = History()
@@ -400,10 +402,29 @@ class AmzProduct(object):
             lines.append(line)
         leancloud.Object.save_all(lines)
 
+    # 对比历史价格，记录历史最高及最低价格。
+    def check_history_price(self, skus):
+        for sku in skus:
+            top_price = History.query\
+                .equal_to('sku', sku)\
+                .add_ascending('price')\
+                .select('price')\
+                .first().get('price')
+            bottom_price = History.query \
+                .equal_to('sku', sku) \
+                .add_descending('price') \
+                .select('price') \
+                .first().get('price')
+            sku.set('top_price', top_price)
+            sku.set('bottom_price', bottom_price)
+        leancloud.Object.save_all(skus)
 
-def update_item():
-    spu = Spu.query.add_ascending('updatedAt').first()
-    item = AmzProduct(spu.get('url'))
+
+def update_item(url=None):
+    if not url:
+        spu = Spu.query.add_ascending('updatedAt').first()
+        url = spu.get('url')
+    item = AmzProduct(url)
 
 
 def print_products(products):
