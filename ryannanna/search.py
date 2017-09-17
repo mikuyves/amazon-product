@@ -13,8 +13,8 @@ import bottlenose
 from bs4 import BeautifulSoup
 from amazon_scraper import AmazonScraper
 import leancloud
-from fake_useragent import UserAgent
-from fake_useragent import FakeUserAgentError
+# from fake_useragent import UserAgent
+# from fake_useragent import FakeUserAgentError
 
 from secret import AMZ_ACCESS_KEY, AMZ_SECRET_KEY, AMZ_ASSOC_TAG,\
     AMZ_ACCESS_KEY2, AMZ_SECRET_KEY2, AMZ_ASSOC_TAG2, AMZ_COOKIE,\
@@ -35,16 +35,18 @@ Sku = leancloud.Object.extend('Sku')
 Spu = leancloud.Object.extend('Spu')
 History = leancloud.Object.extend('History')
 
-try:
-    ua = UserAgent(
-        cache=False,
-        use_cache_server=False,
-        fallback='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.101 Safari/537.36',
-    )
-except FakeUserAgentError:
-    pass
+# try:
+#     ua = UserAgent(
+#         cache=False,
+#         use_cache_server=False,
+#         fallback='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.101 Safari/537.36',
+#     )
+# except FakeUserAgentError:
+#     pass
+#
+# print(ua.random)
 
-print(ua.random)
+user_agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.101 Safari/537.36'
 
 # AMAZON
 # 处理 amazon api 经常性的 503 错误。
@@ -494,7 +496,7 @@ def print_products(products):
 def get_html_doc(url):
     time.sleep(0.9)
     headers = {
-        'User-Agent': ua.random,
+        'User-Agent': user_agent,
         'Cookie': AMZ_COOKIE
     }
     response = requests.get(
