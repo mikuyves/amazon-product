@@ -1,0 +1,10 @@
+{% block product %}
+<div class="card" style="width: 20rem;">
+    <img class="card-img-top" src="{{ spu.get('l_pic') }}" alt="Card image cap">
+    <div class="card-body">
+        <h4 class="card-title">{{ spu.get('name') }}</h4>
+        <p class="card-text">Price: {{ spu.get('min_price') }} - {{ spu.get('max_price') }}</p>
+        <a href="{{ spu.get('detail_page_url') }}" class="btn btn-primary">Go and Buy</a>
+    </div>
+</div>
+{% endblock %}

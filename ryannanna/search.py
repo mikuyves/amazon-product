@@ -580,6 +580,5 @@ if __name__ == '__main__':
         'Wireless',
         'WirelessAccessories'
     ]
-    # url = input('Enter Amazon.cn URL: ')
-    url = 'https://www.amazon.cn/%E6%AF%8D%E5%A9%B4%E7%94%A8%E5%93%81/dp/B0159W8OOW/ref=sr_1_1?s=amazon-global-store&ie=UTF8&qid=1505512954&sr=8-1&keywords=stephan+baby'
+    url = input('Enter Amazon.cn URL: ')
     p = AmzProduct(url)

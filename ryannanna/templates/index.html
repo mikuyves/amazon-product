@@ -1,7 +1,95 @@
 {% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block styles %}
+    {{ super() }}
+    <!-- Custom styles for this template -->
+    <link href="../static/album.css" rel="stylesheet">
+{% endblock %}
+
+
+
+{% block navbar %}
+    <div class="collapse bg-inverse" id="navbarHeader">
+        <div class="container">
+            <div class="row">
+                <div class="col-sm-8 py-4">
+                    <h4 class="text-white">About</h4>
+                    <p class="text-muted">Add some information about the album below, the author, or any other background context. Make it a few sentences long so folks can pick up some informative tidbits. Then, link them off to some social networking sites or contact information.</p>
+                </div>
+                <div class="col-sm-4 py-4">
+                    <h4 class="text-white">Contact</h4>
+                    <ul class="list-unstyled">
+                        <li><a href="#" class="text-white">Follow on Twitter</a></li>
+                        <li><a href="#" class="text-white">Like on Facebook</a></li>
+                        <li><a href="#" class="text-white">Email me</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="navbar navbar-inverse bg-inverse">
+        <div class="container d-flex justify-content-between">
+            <a href="#" class="navbar-brand">Album</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarHeader" aria-controls="navbarHeader" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+        </div>
+    </div>
+
+{% endblock %}
 
 {% block page_content %}
-    <div class="page_header">
-        <h1>Ok, test!</h1>
+    {{ wtf.quick_form(form) }}
+
+    <section class="jumbotron text-center">
+      <div class="container">
+        <h1 class="jumbotron-heading">Album example</h1>
+        <p class="lead text-muted">Something short and leading about the collection below—its contents, the creator, etc. Make it short and sweet, but not too short so folks don't simply skip over it entirely.</p>
+        <p>
+          <a href="#" class="btn btn-primary">Main call to action</a>
+          <a href="#" class="btn btn-secondary">Secondary action</a>
+        </p>
+      </div>
+    </section>
+
+    <div class="album text-muted">
+      <div class="container">
+
+        <div class="row">
+        {% macro get_img_url(item) %}
+            {{  item.hd_pics[0] if item.hd_pics else item.l_pic }}
+        {% endmacro %}
+            {% for item in items %}
+              <div class="card">
+                <img class="img-thumbnail" src="{{ get_img_url(item.spu) }}" alt="Card image cap">
+                  <h4 class="card-title">{{ item.spu.name }}</h4>
+                  <h5 class="card-text">Price: {{ item.spu.min_price }} - {{ item.spu.max_price }} 元</h5>
+                  {% for sku in item.skus %}
+                      <a href="{{ sku.detail_page_url }}" class="">
+                          <p class="card-text">{{ sku.name }} : {{ sku.price }} 元</p>
+                      </a>
+                  {% endfor %}
+              </div>
+            {% endfor %}
+        </div>
+
+      </div>
     </div>
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    <script src="https://code.jquery.com/jquery-3.1.1.slim.min.js" integrity="sha384-A7FZj7v+d/sdmMqp/nOQwliLvUsJfDHW+k9Omg/a/EheAdgtzNs3hpfag6Ed950n" crossorigin="anonymous"></script>
+    <script>window.jQuery || document.write('<script src="../static/assets/js/vendor/jquery.min.js"><\/script>')</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tether/1.4.0/js/tether.min.js" integrity="sha384-DztdAPBWPRXSA/3eYEEUWrWCy7G5KFbe8fFjk5JAIxUYHKkDx6Qin1DkWx51bBrb" crossorigin="anonymous"></script>
+    <script src="../static/assets/js/vendor/holder.min.js"></script>
+    <script>
+        $(function () {
+            Holder.addTheme("thumb", { background: "#55595c", foreground: "#eceeef", text: "Thumbnail" });
+        });
+    </script>
+    <script src="../static/dist/js/bootstrap.min.js"></script>
+    <!-- IE10 viewport hack for Surface/desktop Windows 8 bug -->
+    <script src="../static/assets/js/ie10-viewport-bug-workaround.js"></script>
 {% endblock %}
