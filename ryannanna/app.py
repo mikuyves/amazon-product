@@ -68,25 +68,7 @@ def index():
 
 @app.route('/album/', methods=['GET', 'POST'])
 def album():
-    url = None
-    form = UrlForm()
-    spu_odjs = Spu.query.add_descending('createdAt').find()
-    items = []
-    for spu_obj in spu_odjs:
-        spu = spu_obj.dump()
-        sku_objs = Sku.query\
-            .equal_to('spu', spu_obj)\
-            .add_descending('price').find()
-        skus = [sku_obj.dump() for sku_obj in sku_objs]
-        items.append({'spu': spu, 'skus': skus})
-
-    if form.validate_on_submit():
-        url = form.url.data
-        item = update_item(url)
-        form.url.data = ''
-        return redirect(url_for('album'))
-
-    return render_template('album.html', form=form, items=items)
+    return render_template('album.html')
 
 
 @app.route('/time')
@@ -94,7 +76,19 @@ def time():
     return str(datetime.now())
 
 
-@app.route('/pd/<asin>')
+@app.route('/item/<asin>')
+def product(asin):
+    query = Spu.query
+    query.equal_to('asin', asin)
+    spu = query.first()
+    sku_objs = Sku.query\
+        .equal_to('spu', spu)\
+        .find()
+    skus = [sku_obj.dump() for sku_obj in sku_objs]
+    return json.dumps({'spu': spu, 'skus': skus})
+
+
+@app.route('/sku/<asin>')
 def product(asin):
     query = Sku.query
     query.equal_to('asin', asin)

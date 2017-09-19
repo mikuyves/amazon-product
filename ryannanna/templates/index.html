@@ -73,7 +73,7 @@
                           </a>
                           {% if sku.last_change %}
                               <span class="card-text" style="color: {{ 'red' if sku.last_change < 0 else 'green' }};">
-                                  ({{ '%+0.2f' | format(sku.last_change | float) }}元, {{'%+0.2f'| format(sku.last_change_rate|float)}}% )
+                                  ({{ '%+0.2f' | format(sku.last_change | float) }}元, {{'%+0.2f'| format(sku.last_change_rate * 100 |float)}}% )
                               </span>
                               <span>{{ '%0.0f' | format((sku.last_change_time / 60) | float) }}' ago</span>
                           {% endif %}
