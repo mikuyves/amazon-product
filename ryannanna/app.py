@@ -9,6 +9,7 @@ from flask_sockets import Sockets
 
 from flask_bootstrap import Bootstrap
 from flask_wtf import FlaskForm
+from flask_moment import Moment
 from wtforms import StringField, SubmitField
 from wtforms.validators import Required
 
@@ -21,6 +22,7 @@ from search import update_item
 app = Flask(__name__)
 sockets = Sockets(app)
 bootstrap = Bootstrap(app)
+moment = Moment(app)
 app.config['SECRET_KEY'] = 'hard to guess string'
 
 
@@ -48,7 +50,7 @@ def index():
         spu = spu_obj.dump()
         sku_objs = Sku.query \
             .equal_to('spu', spu_obj) \
-            .add_descending('price').find()
+            .add_ascending('price').find()
         skus = [sku_obj.dump() for sku_obj in sku_objs]
         items.append({'spu': spu, 'skus': skus})
 
@@ -58,7 +60,10 @@ def index():
         form.url.data = ''
         return redirect(url_for('index'))
 
-    return render_template('index.html', form=form, items=items)
+    return render_template('index.html',
+                           form=form,
+                           items=items,
+                           current_time=datetime.utcnow())
 
 
 @app.route('/album/', methods=['GET', 'POST'])

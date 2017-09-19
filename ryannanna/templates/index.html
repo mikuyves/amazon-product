@@ -62,24 +62,38 @@
         {% endmacro %}
             {% for item in items %}
               <div class="card">
-                <img class="img-thumbnail" src="{{ get_img_url(item.spu) }}" alt="Card image cap">
-                  <h4 class="card-title">{{ item.spu.name }}</h4>
-                  <h5 class="card-text">Price: {{ item.spu.min_price }} - {{ item.spu.max_price }} 元</h5>
+                <img class="img-thumbnail" style="width: 100%; height: auto" src="{{ get_img_url(item.spu) }}" alt="Card image cap">
+                  <h4 class="card-title">{{ item.spu.brand }}</h4>
+                  <h5 class="card-text">{{ item.spu.name }}</h5>
+                  <h5 class="card-title" style="font-style: italic">Price: {{ item.spu.min_price }} - {{ item.spu.max_price }} 元</h5>
                   {% for sku in item.skus %}
-                      <a href="{{ sku.detail_page_url }}" class="">
-                          <p class="card-text">{{ sku.name }} : {{ sku.price }} 元</p>
-                      </a>
+                      <p class="card-text">
+                          <a href="{{ sku.detail_page_url }}" class="">
+                              <span class="card-text">{{ sku.name }} : {{ sku.price }} 元</span>
+                          </a>
+                          {% if sku.last_change %}
+                              <span class="card-text" style="color: {{ 'red' if sku.last_change < 0 else 'green' }};">
+                                  ({{ '%+0.2f' | format(sku.last_change | float) }}元, {{'%+0.2f'| format(sku.last_change_rate|float)}}% )
+                              </span>
+                              <span>{{ '%0.0f' | format((sku.last_change_time / 60) | float) }}' ago</span>
+                          {% endif %}
+                      </p>
                   {% endfor %}
+                  <div class="card-footer">
+                      <small class="text-muted">Last updated {{ moment(current_time).fromNow(refresh=True) }}</small>
+                  </div>
               </div>
             {% endfor %}
         </div>
 
       </div>
     </div>
+
 {% endblock %}
 
 {% block scripts %}
     {{ super() }}
+    {{ moment.include_moment() }}
     <script src="https://code.jquery.com/jquery-3.1.1.slim.min.js" integrity="sha384-A7FZj7v+d/sdmMqp/nOQwliLvUsJfDHW+k9Omg/a/EheAdgtzNs3hpfag6Ed950n" crossorigin="anonymous"></script>
     <script>window.jQuery || document.write('<script src="../static/assets/js/vendor/jquery.min.js"><\/script>')</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tether/1.4.0/js/tether.min.js" integrity="sha384-DztdAPBWPRXSA/3eYEEUWrWCy7G5KFbe8fFjk5JAIxUYHKkDx6Qin1DkWx51bBrb" crossorigin="anonymous"></script>

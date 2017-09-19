@@ -21,3 +21,4 @@ xmltodict==0.11.0
 fake-useragent==0.1.7
 flask-bootstrap==3.3.7.1
 flask-wtf==0.14.2
+flask-moment==0.5.1
