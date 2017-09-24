@@ -1,37 +1,41 @@
-import json
 import re
+import json
+import pprint
+import random
+import time
+from urllib.error import HTTPError
+from lxml import html
+import requests
+from amazon.api import AmazonAPI
+import bottlenose.api
 
-from search import AmzProduct, get_html_doc
+import bottlenose
+from bs4 import BeautifulSoup
+from amazon_scraper import AmazonScraper
+import leancloud
+# from fake_useragent import UserAgent
+# from fake_useragent import FakeUserAgentError
+
+from secret import LC_APP_ID, LC_APP_KEY, LC_USERNAME, LC_PASSWORD
 
 
-print('Lets go')
+# Leancloud
+# 初始化 Leancloud 应用。
+leancloud.init(LC_APP_ID, LC_APP_KEY)
 
-url = 'https://www.amazon.cn/s/ref=sr_pg_2?fst=as%3Aoff&rh=n%3A2016156051%2Cn%3A2152158051%2Cn%3A2152156051%2Cn%3A2153534051%2Ck%3Ajuicy&page=2&keywords=juicy&ie=UTF8&qid=1505271194'
+# 登陆 Leancloud 应用。
+user = leancloud.User()
+user.login(LC_USERNAME, LC_PASSWORD)
+print(user)
 
-doc = get_html_doc(url)
-print(doc)
-
-results = doc.xpath('//@href')
-print(results)
-link_re = re.compile('^https://www.amazon.cn/\S+')
+# 初始化所需要的类。
+Sku = leancloud.Object.extend('Sku')
+Spu = leancloud.Object.extend('Spu')
+History = leancloud.Object.extend('History')
 
 
-links = []
-for r in results:
-    link = link_re.search(r)
-    if link:
-        print(link.group(0))
-        links.append(link.group(0))
+def get_data():
+    spu = Spu.query.add_descending('updatedAt').first()
+    skus = Sku.query.equal_to('spu', spu).find()
 
-# search every link
-for link in links[1:]:
-    print('Parsing %s' % link)
-    p = AmzProduct(link)
-
-    print(p.sku_list)
-    sku_list6 = [sku for sku in p.sku_list if sku.get('name') and '6' in sku.get('name')]
-
-    with open('juicy.txt', 'a') as f:
-        f.write('6 years old: \n')
-        json.dump(sku_list6, f)
-    print(sku_list6)
+    return [spu, skus]

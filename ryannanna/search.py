@@ -3,6 +3,7 @@ import json
 import pprint
 import random
 import time
+import datetime
 from urllib.error import HTTPError
 from lxml import html
 import requests
@@ -367,10 +368,16 @@ class AmzProduct(object):
                     sku_obj.set(sku)
                     sku_obj.set('increment', increment)
                     sku_obj.set('change_rate', change_rate)
+                    updatedAt = sku_obj.get('updatedAt')
+                    now = datetime.datetime.now()
+                    time_dt = now - updatedAt.replace(tzinfo=updatedAt.tzinfo)
+                    if time_dt < -7:
+                        sku_obj.set('is_new', False)
                 # Add, New.
                 else:
                     sku_obj = Sku()
                     sku_obj.set(sku)
+                    sku_obj.set('is_new', True)
                     sku_obj.set('spu', spu)
                     sku_obj.set('increment', 0.0)
                     sku_obj.set('change_rate', 0.0)
