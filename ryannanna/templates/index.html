@@ -65,15 +65,20 @@
                 <img class="img-thumbnail" style="width: 100%; height: auto" src="{{ get_img_url(item.spu) }}" alt="Card image cap">
                   <h4 class="card-title">{{ item.spu.brand }}</h4>
                   <h5 class="card-text">{{ item.spu.name }}</h5>
-                  <h5 class="card-title" style="font-style: italic">Price: {{ item.spu.min_price }} - {{ item.spu.max_price }} 元</h5>
+                  <h5 class="card-title" style="font-style: italic">¥{{ item.spu.min_price }} - ¥{{ item.spu.max_price }}</h5>
                   {% for sku in item.skus %}
                       <p class="card-text">
                           <a href="{{ sku.detail_page_url }}" class="">
-                              <span class="card-text">{{ sku.name }} : {{ sku.price }} 元</span>
+                              <span class="card-text">{{ sku.name }} : ¥{{ sku.price }}</span>
                           </a>
                           {% if sku.is_new %}
                               <span class="card-text" style="color: red;">
                                   NEW!
+                              </span>
+                          {% endif %}
+                          {% if not sku.is_prime %}
+                              <span class="card-text" style="color: blue;">
+                                  NonP!
                               </span>
                           {% endif %}
                           {% if sku.last_change %}
