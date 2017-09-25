@@ -71,6 +71,11 @@
                           <a href="{{ sku.detail_page_url }}" class="">
                               <span class="card-text">{{ sku.name }} : {{ sku.price }} 元</span>
                           </a>
+                          {% if sku.is_new %}
+                              <span class="card-text" style="color: red;">
+                                  NEW!
+                              </span>
+                          {% endif %}
                           {% if sku.last_change %}
                               <span class="card-text" style="color: {{ 'red' if sku.last_change < 0 else 'green' }};">
                                   ({{ '%+0.2f' | format(sku.last_change | float) }}元, {{'%+0.2f'| format(sku.last_change_rate * 100 |float)}}% )
