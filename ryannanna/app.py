@@ -88,14 +88,6 @@ def product(asin):
     return json.dumps({'spu': spu, 'skus': skus})
 
 
-@app.route('/sku/<asin>')
-def product(asin):
-    query = Sku.query
-    query.equal_to('asin', asin)
-    sku = query.first()
-    return json.dumps(sku.dump())
-
-
 @sockets.route('/echo')
 def echo_socket(ws):
     while True:
