@@ -4,8 +4,9 @@ from datetime import datetime
 import json
 
 from flask import Flask
-from flask import render_template, session, redirect, url_for
+from flask import render_template, request, session, redirect, url_for
 from flask_sockets import Sockets
+from flask_mongoengine.pagination import Pagination
 
 from flask_bootstrap import Bootstrap
 from flask_wtf import FlaskForm
@@ -42,11 +43,14 @@ class UrlForm(FlaskForm):
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    url = None
-    form = UrlForm()
-    spu_odjs = Spu.query.add_descending('createdAt').find()
+    # Pagination.
+    page = request.args.get('page', 1, type=int)
+    spu_all = Spu.query.add_descending('createdAt').find()
+    pg = Pagination(spu_all, page, 20)
+
+    # Get and arrange the item data to render.
     items = []
-    for spu_obj in spu_odjs:
+    for spu_obj in pg.items:
         spu = spu_obj.dump()
         sku_objs = Sku.query \
             .equal_to('spu', spu_obj) \
@@ -54,6 +58,9 @@ def index():
         skus = [sku_obj.dump() for sku_obj in sku_objs]
         items.append({'spu': spu, 'skus': skus})
 
+    # Form to input the URL.
+    url = None
+    form = UrlForm()
     if form.validate_on_submit():
         url = form.url.data
         item = update_item(url)
@@ -63,6 +70,7 @@ def index():
     return render_template('index.html',
                            form=form,
                            items=items,
+                           pagination=pg,
                            current_time=datetime.utcnow())
 
 
