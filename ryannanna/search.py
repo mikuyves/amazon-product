@@ -279,7 +279,7 @@ class AmzProduct(object):
                 sku['s_pic'] = item.small_pic
                 sku['m_pic'] = item.medium_pic
                 sku['l_pic'] = item.large_pic
-                sku['is_instock'] = True
+                sku['is_instock'] = True if item.price else False
                 sku['is_prime'] = True if item.is_prime else False
 
             pprint.pprint(sku)
