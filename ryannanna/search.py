@@ -107,6 +107,7 @@ class AmazonLookupItem(object):
         if self.item_api.price_and_currency:
             try:
                 price = float(self.item_api.price_and_currency[0])
+                return price
             except TypeError:
                 return None
         else:
@@ -272,7 +273,11 @@ class AmzProduct(object):
                 # 请求。
                 item = AmazonLookupItem(sku_asin)
                 sku['full_name'] = item.title
-                sku['price'] = item.price
+                if item.price:
+                    sku['price'] = item.price
+                else:
+                    print(sku_asin)
+                    sku['price'] = Sku.query.equal_to('asin', sku_asin).first().get('price')
                 sku['features'] = item.features
                 sku['brand'] = item.brand
                 sku['detail_page_url'] = item.detail_page_url
@@ -370,7 +375,10 @@ class AmzProduct(object):
                     sku_obj = results[0]
                     price = sku.get('price')
                     previous_price = sku_obj.get('price')
-                    increment = price - previous_price
+                    try:
+                        increment = price - previous_price
+                    except TypeError:
+                        increment = 0.0
                     change_rate = increment / previous_price
                     sku_obj.set(sku)
                     sku_obj.set('increment', increment)
@@ -435,12 +443,13 @@ class AmzProduct(object):
             price = sku.get('price')
             lines = History.query\
                 .equal_to('sku', sku) \
+                .include('spu') \
                 .add_descending('updatedAt')\
                 .find()
 
             prices  = [line.get('price') for line in lines]
 
-            spu_max_price = self.spu.get('max_price')
+            spu_max_price = sku.get('spu').get('max_price')
             off_to_spu = price / spu_max_price
             top_price = max(prices)
             bottom_price = min(prices)
