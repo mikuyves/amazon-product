@@ -297,8 +297,12 @@ class AmzProduct(object):
             self.spu['brand'] = item.brand
             self.spu['detail_page_url'] = item.detail_page_url
             self.spu['url'] = self.id2url(spu_asin)
-            self.spu['max_price'] = max([sku['price'] for sku in self.sku_list if sku.get('price', None)])
-            self.spu['min_price'] = min([sku['price'] for sku in self.sku_list if sku.get('price', None)])
+            try:
+                self.spu['max_price'] = max([sku['price'] for sku in self.sku_list if sku.get('price', None)])
+                self.spu['min_price'] = min([sku['price'] for sku in self.sku_list if sku.get('price', None)])
+            except ValueError:
+                # No price means this SKU is unavailable, keep the previous record.
+                pass
             self.spu['s_pic'] = item.small_pic
             self.spu['m_pic'] = item.medium_pic
             self.spu['l_pic'] = item.large_pic
