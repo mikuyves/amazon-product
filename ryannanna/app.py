@@ -4,7 +4,7 @@ from datetime import datetime
 import json
 
 from flask import Flask
-from flask import render_template, request, session, redirect, url_for
+from flask import render_template, request, session, redirect, url_for, flash
 from flask_sockets import Sockets
 from flask_mongoengine.pagination import Pagination
 
@@ -13,6 +13,7 @@ from flask_wtf import FlaskForm
 from flask_moment import Moment
 from wtforms import StringField, SubmitField
 from wtforms.validators import Required
+from threading import Thread
 
 import leancloud
 
@@ -63,7 +64,7 @@ def index():
     form = UrlForm()
     if form.validate_on_submit():
         url = form.url.data
-        item = update_item(url)
+        parse_new(url)
         form.url.data = ''
         return redirect(url_for('index'))
 
@@ -101,3 +102,17 @@ def echo_socket(ws):
     while True:
         message = ws.receive()
         ws.send(message)
+
+
+def async_parse_new(app, url, request):
+    with app.app_context():
+        # flash('Parsing item...')
+        item = update_item(url)
+        with app.test_request_context():
+            flash('Ok! Parsed item: {}'.format(item.get('spu').get('name')))
+
+
+def parse_new(url):
+    thr = Thread(target=async_parse_new, args=[app, url, request])
+    thr.start()
+    return thr

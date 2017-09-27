@@ -370,8 +370,8 @@ class AmzProduct(object):
                     sku_obj.set('change_rate', change_rate)
                     updatedAt = sku_obj.get('updatedAt')
                     now = datetime.datetime.now()
-                    time_dt = now - updatedAt.replace(tzinfo=updatedAt.tzinfo)
-                    if time_dt < -7:
+                    time_dt = now.replace(tzinfo=updatedAt.tzinfo) - updatedAt
+                    if time_dt.days < -7:
                         sku_obj.set('is_new', False)
                 # Add, New.
                 else:
@@ -483,12 +483,12 @@ class AmzProduct(object):
         leancloud.Object.save_all(skus)
 
 
-def update_item(url=None):
+def update_item(url=None, **kwargs):
     if not url:
         spu = Spu.query.add_ascending('updatedAt').first()
         url = spu.get('url')
     item = AmzProduct(url)
-    return item
+    return {'spu': item.spu, 'skus': item.sku_list}
 
 
 def print_products(products):
