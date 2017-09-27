@@ -105,7 +105,10 @@ class AmazonLookupItem(object):
     @property
     def price(self):
         if self.item_api.price_and_currency:
-            return float(self.item_api.price_and_currency[0])
+            try:
+                price = float(self.item_api.price_and_currency[0])
+            except TypeError:
+                return None
         else:
             return None
 
