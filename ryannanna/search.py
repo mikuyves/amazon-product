@@ -443,7 +443,8 @@ class AmzProduct(object):
             price = sku.get('price')
             lines = History.query\
                 .equal_to('sku', sku) \
-                .include('spu') \
+                .include('sku') \
+                .include('sku.spu') \
                 .add_descending('updatedAt')\
                 .find()
 
