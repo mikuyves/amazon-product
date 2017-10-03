@@ -1,5 +1,4 @@
 {% extends "layout.html" %}
-{% import "bootstrap/wtf.html" as wtf %}
 {% import "_macros.html" as macros %}
 
 {% block title %}所有{% endblock %}
@@ -10,13 +9,17 @@
 
   <div class="mt-3">
     <div id="items">
+
+
       <input type="search" class="search mb-3 form-control form-control-lg"
              placeholder="Search from {{ items|length }} products.">
       <div class="row" data-masonry='{ "itemSelector": ".col", "columnWidth":".col" }'>
+
         {% macro get_img_url(item) %}
           {{  item.hd_pics[0] if item.hd_pics else item.l_pic }}
         {% endmacro %}
         {% for item in items %}
+
           <div class="col col-xs-12 col-sm-6 col-md-4 col-lg-4 col-xl-3 mb-3">
             <div class="card mdui-card mdui-hoverable">
               <img class="card-img-top" src="{{ get_img_url(item.spu) }}">
@@ -26,6 +29,7 @@
                 <p class="description card-text">
                   <small class="text-muted"><em>¥{{ item.spu.min_price }} - ¥{{ item.spu.max_price }}</em></small>
                 </p>
+
                 {% for sku in item.skus %}
                   <p class="card-text">
                     <a href="{{ sku.detail_page_url }}" class="">
@@ -54,6 +58,7 @@
                     {% endif %}
                   </p>
                 {% endfor %}
+
                 <footer>
                   <p class="card-text">
                     <small class="refresh_time text-muted">{{ item.refresh_time }}</small>
@@ -61,10 +66,12 @@
                   <a href="{{ url_for('index', comic_id=item.id) }}"
                      class="btn btn-primary btn-sm">View</a>
                 </footer>
+
               </div>
             </div>
           </div>
         {% endfor %}
+
       </div>
     </div>
   </div>

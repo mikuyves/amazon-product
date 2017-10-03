@@ -1,6 +1,6 @@
 # coding: utf-8
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 
 from flask import Flask
@@ -26,6 +26,7 @@ sockets = Sockets(app)
 bootstrap = Bootstrap(app)
 moment = Moment(app)
 app.config['SECRET_KEY'] = 'hard to guess string'
+app.jinja_env.auto_reload = True
 
 
 # 动态路由
@@ -75,16 +76,17 @@ def index():
                            current_time=datetime.utcnow())
 
 
-@app.route('/comics', methods=['GET', 'POST'])
-def comics():
+@app.route('/latest', methods=['GET', 'POST'])
+def latest():
     # Pagination.
-    page = request.args.get('page', 1, type=int)
-    spu_all = Spu.query.add_descending('createdAt').find()
-    pg = Pagination(spu_all, page, 20)
+    latest_spus = Spu.query \
+        .greater_than_or_equal_to('createdAt', datetime.now() - timedelta(days=2))\
+        .add_descending('createdAt')\
+        .find()
 
     # Get and arrange the item data to render.
     items = []
-    for spu_obj in pg.items:
+    for spu_obj in latest_spus:
         spu = spu_obj.dump()
         sku_objs = Sku.query \
             .equal_to('spu', spu_obj) \
@@ -101,17 +103,75 @@ def comics():
         form.url.data = ''
         return redirect(url_for('index'))
 
-    return render_template('comics.html',
+    return render_template('latest.html',
                            form=form,
                            items=items,
-                           pagination=pg,
                            current_time=datetime.utcnow())
 
 
+@app.route('/update30', methods=['GET', 'POST'])
+def update30():
+    # Pagination.
+    latest_spus = Spu.query \
+        .add_descending('updatedAt') \
+        .limit(30)\
+        .find()
 
-@app.route('/album/', methods=['GET', 'POST'])
-def album():
-    return render_template('album.html')
+    # Get and arrange the item data to render.
+    items = []
+    for spu_obj in latest_spus:
+        spu = spu_obj.dump()
+        sku_objs = Sku.query \
+            .equal_to('spu', spu_obj) \
+            .add_ascending('price').find()
+        skus = [sku_obj.dump() for sku_obj in sku_objs]
+        items.append({'spu': spu, 'skus': skus})
+
+    # Form to input the URL.
+    url = None
+    form = UrlForm()
+    if form.validate_on_submit():
+        url = form.url.data
+        parse_new(url)
+        form.url.data = ''
+        return redirect(url_for('index'))
+
+    return render_template('update30.html',
+                           form=form,
+                           items=items,
+                           current_time=datetime.utcnow())
+
+
+@app.route('/all', methods=['GET', 'POST'])
+def all():
+    # Pagination.
+    latest_spus = Spu.query \
+        .add_descending('createdAt') \
+        .find()
+
+    # Get and arrange the item data to render.
+    items = []
+    for spu_obj in latest_spus:
+        spu = spu_obj.dump()
+        sku_objs = Sku.query \
+            .equal_to('spu', spu_obj) \
+            .add_ascending('price').find()
+        skus = [sku_obj.dump() for sku_obj in sku_objs]
+        items.append({'spu': spu, 'skus': skus})
+
+    # Form to input the URL.
+    url = None
+    form = UrlForm()
+    if form.validate_on_submit():
+        url = form.url.data
+        parse_new(url)
+        form.url.data = ''
+        return redirect(url_for('index'))
+
+    return render_template('all.html',
+                           form=form,
+                           items=items,
+                           current_time=datetime.utcnow())
 
 
 @app.route('/time')
