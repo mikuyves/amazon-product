@@ -75,6 +75,40 @@ def index():
                            current_time=datetime.utcnow())
 
 
+@app.route('/comics', methods=['GET', 'POST'])
+def comics():
+    # Pagination.
+    page = request.args.get('page', 1, type=int)
+    spu_all = Spu.query.add_descending('createdAt').find()
+    pg = Pagination(spu_all, page, 20)
+
+    # Get and arrange the item data to render.
+    items = []
+    for spu_obj in pg.items:
+        spu = spu_obj.dump()
+        sku_objs = Sku.query \
+            .equal_to('spu', spu_obj) \
+            .add_ascending('price').find()
+        skus = [sku_obj.dump() for sku_obj in sku_objs]
+        items.append({'spu': spu, 'skus': skus})
+
+    # Form to input the URL.
+    url = None
+    form = UrlForm()
+    if form.validate_on_submit():
+        url = form.url.data
+        parse_new(url)
+        form.url.data = ''
+        return redirect(url_for('index'))
+
+    return render_template('comics.html',
+                           form=form,
+                           items=items,
+                           pagination=pg,
+                           current_time=datetime.utcnow())
+
+
+
 @app.route('/album/', methods=['GET', 'POST'])
 def album():
     return render_template('album.html')
