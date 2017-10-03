@@ -3,6 +3,7 @@ import json
 import pprint
 import random
 import time
+import datetime
 from urllib.error import HTTPError
 from lxml import html
 import requests
@@ -13,8 +14,8 @@ import bottlenose
 from bs4 import BeautifulSoup
 from amazon_scraper import AmazonScraper
 import leancloud
-from fake_useragent import UserAgent
-from fake_useragent import FakeUserAgentError
+# from fake_useragent import UserAgent
+# from fake_useragent import FakeUserAgentError
 
 from secret import AMZ_ACCESS_KEY, AMZ_SECRET_KEY, AMZ_ASSOC_TAG,\
     AMZ_ACCESS_KEY2, AMZ_SECRET_KEY2, AMZ_ASSOC_TAG2, AMZ_COOKIE,\
@@ -28,16 +29,25 @@ leancloud.init(LC_APP_ID, LC_APP_KEY)
 # 登陆 Leancloud 应用。
 user = leancloud.User()
 user.login(LC_USERNAME, LC_PASSWORD)
+print(user)
 
-try:
-    ua = UserAgent(
-        cache=False,
-        fallback='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.101 Safari/537.36'
-    )
-except FakeUserAgentError:
-    pass
+# 初始化所需要的类。
+Sku = leancloud.Object.extend('Sku')
+Spu = leancloud.Object.extend('Spu')
+History = leancloud.Object.extend('History')
 
-print(ua.random)
+# try:
+#     ua = UserAgent(
+#         cache=False,
+#         use_cache_server=False,
+#         fallback='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.101 Safari/537.36',
+#     )
+# except FakeUserAgentError:
+#     pass
+#
+# print(ua.random)
+
+user_agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.101 Safari/537.36'
 
 # AMAZON
 # 处理 amazon api 经常性的 503 错误。
@@ -95,7 +105,11 @@ class AmazonLookupItem(object):
     @property
     def price(self):
         if self.item_api.price_and_currency:
-            return float(self.item_api.price_and_currency[0])
+            try:
+                price = float(self.item_api.price_and_currency[0])
+                return price
+            except TypeError:
+                return None
         else:
             return None
 
@@ -140,13 +154,22 @@ class AmazonLookupItem(object):
 
 
 class AmzProduct(object):
-    def __init__(self, url, debug=False):
+    def __init__(self, url, DEBUG=False):
         # 处理基本信息： url 和 asin。
         self.raw_url = url
         self.item_id = self.url2id(url)
         self.url = self.id2url(self.item_id)
 
+        # 判断是新建还是更新。
+        is_saved = self.check_is_saved()
+        if is_saved:
+            print('This item already exists in cloud data.')
+            print('Now, updating...\n')
+
         # 抓取网页源代码内容。
+        # 通过源码获取，spu 及 sku 信息，这一步一定要做。因为每次获取都可能会不同。
+        # 网页上数据会显示什么 sku 在售。如果更新的时候发现之前的 sku asin 不在
+        # 网页上，就表示这个 sku 已经不能购买。需要更新云端中 is_instock 的字段。
         print('\n>>> Parsing item URL...')
         self.response, self.page_doc = get_html_doc(self.url)
 
@@ -154,19 +177,20 @@ class AmzProduct(object):
         print('\n>>> Getting info from Amazon api...')
         self.item_api = AmazonLookupItem(self.item_id)
 
-        # 生成 spu 和 sku。
+        # 生成此 item 的 spu 和 sku_list。
         print('\n>>> Initializing SPU and SKU...')
         self.spu, self.sku_list = self.init_spu_and_sku()
 
-        if not debug:
-            self.parse_and_save()
+        if not DEBUG:
+            self.parse_and_save(update=is_saved)
 
-    def parse_and_save(self):
+    def parse_and_save(self, update=False):
         # 获取所有 SKU 和 SPU 的详细数据。注意顺序，首先分析 SKU。
         self.parse_sku_list()
         self.parse_spu()
-        self.parse_hires_pic_urls()
-        self.lc_save()
+        if not update:
+            self.parse_hires_pic_urls()
+        self.lc_save(update=update)
 
     def __str__(self):
         if self.spu.get('name'):
@@ -174,8 +198,13 @@ class AmzProduct(object):
         else:
             return self.item_id
 
+    def check_is_saved(self):
+        spu_query = Spu.query.equal_to('asin', self.item_id).find()
+        sku_query = Sku.query.equal_to('asin', self.item_id).find()
+        return True if (spu_query or sku_query) else False
+
     def url2id(self, url):
-        url_re = re.compile(r'/(dp|gp/product)/(\S{,10})/(ref)?')
+        url_re = re.compile(r'/(dp|gp/product)/(\S{,10})')
         return url_re.search(url).group(2)
 
     def id2url(self, id):
@@ -244,14 +273,18 @@ class AmzProduct(object):
                 # 请求。
                 item = AmazonLookupItem(sku_asin)
                 sku['full_name'] = item.title
-                sku['price'] = item.price
+                if item.price:
+                    sku['price'] = item.price
+                else:
+                    print(sku_asin)
+                    sku['price'] = Sku.query.equal_to('asin', sku_asin).first().get('price')
                 sku['features'] = item.features
                 sku['brand'] = item.brand
                 sku['detail_page_url'] = item.detail_page_url
                 sku['s_pic'] = item.small_pic
                 sku['m_pic'] = item.medium_pic
                 sku['l_pic'] = item.large_pic
-                sku['is_instock'] = True
+                sku['is_instock'] = True if item.price else False
                 sku['is_prime'] = True if item.is_prime else False
 
             pprint.pprint(sku)
@@ -269,11 +302,16 @@ class AmzProduct(object):
             self.spu['brand'] = item.brand
             self.spu['detail_page_url'] = item.detail_page_url
             self.spu['url'] = self.id2url(spu_asin)
-            self.spu['max_price'] = max([sku['price'] for sku in self.sku_list if sku.get('price', None)])
-            self.spu['min_price'] = min([sku['price'] for sku in self.sku_list if sku.get('price', None)])
+            try:
+                self.spu['max_price'] = max([sku['price'] for sku in self.sku_list if sku.get('price', None)])
+                self.spu['min_price'] = min([sku['price'] for sku in self.sku_list if sku.get('price', None)])
+            except ValueError:
+                # No price means this SKU is unavailable, keep the previous record.
+                pass
             self.spu['s_pic'] = item.small_pic
             self.spu['m_pic'] = item.medium_pic
             self.spu['l_pic'] = item.large_pic
+            self.spu['sku_number'] = len(self.sku_list)
 
             pprint.pprint(self.spu)
 
@@ -299,33 +337,177 @@ class AmzProduct(object):
         # 获取 SKU 高清图。
         for sku in self.sku_list:
             asin = sku.get('asin')
-            sku['hd_pics'] = self.get_hires_pic_urls(asin)
+            urls = self.get_hires_pic_urls(asin)
+            # 预防 amazon 修改 html。
+            if urls:
+                sku['hd_pics'] = urls
             print('''\n>>> Got SKU's HiRes pictures of %s:''' % asin)
-            pprint.pprint(sku['hd_pics'])
+            pprint.pprint(sku.get('hd_pics'))
 
         # 获取 SPU 高清图。
-        spu_asin = self.spu.get(asin)
+        asin = self.spu.get('asin')
         self.spu['hd_pics'] = self.get_hires_pic_urls(asin)
         print('''\n>>> Got SPU's HiRes pictures of %s:''' % asin)
-        pprint.pprint(self.spu['hd_pics'])
+        pprint.pprint(self.spu.get('hd_pics'))
 
-    def lc_save(self):
-        '''保存到 leancloud。'''
+
+    # 保存到 leancloud。
+    def lc_save(self, update=False):
         print('\n>>> Saving to Leancloud...')
 
         # 保存 SPU。
-        Spu = leancloud.Object.extend('Spu')
-        spu = Spu()
+        if update:
+            spu = Spu.query.equal_to('asin', self.spu.get('asin')).first()
+        else:
+            spu = Spu()
         spu.set(self.spu)
         spu.save()
         print('SPU saved.')
 
         # 保存 SKU。
-        Sku = leancloud.Object.extend('Sku')
-        skus = [Sku().set(sku) for sku in self.sku_list]
-        skus = [sku.set('spu', spu) for sku in skus]
+        # 更新。
+        if update:
+            skus = []
+            for sku in self.sku_list:
+                results = Sku.query.equal_to('asin', sku.get('asin')).find()
+                # Update, Exists.
+                if results:
+                    sku_obj = results[0]
+                    price = sku.get('price')
+                    previous_price = sku_obj.get('price')
+                    try:
+                        increment = price - previous_price
+                    except TypeError:
+                        increment = 0.0
+                    change_rate = increment / previous_price
+                    sku_obj.set(sku)
+                    sku_obj.set('increment', increment)
+                    sku_obj.set('change_rate', change_rate)
+                    updatedAt = sku_obj.get('updatedAt')
+                    now = datetime.datetime.now()
+                    time_dt = now.replace(tzinfo=updatedAt.tzinfo) - updatedAt
+                    if time_dt.days < -7:
+                        sku_obj.set('is_new', False)
+                # Add, New.
+                else:
+                    sku_obj = Sku()
+                    sku_obj.set(sku)
+                    sku_obj.set('is_new', True)
+                    sku_obj.set('spu', spu)
+                    sku_obj.set('increment', 0.0)
+                    sku_obj.set('change_rate', 0.0)
+                    # Only new sku need to get hd pics advoiding HTML changed by Amazon.
+                    hd_pic_urls = self.get_hires_pic_urls(sku.get('asin'))
+                    sku_obj.set('hd_pics', hd_pic_urls)
+                skus.append(sku_obj)
+
+            # Update, Old. Check SKU out of stock:
+            old_sku_objs = Sku.query.equal_to('spu', spu).find()
+            new_sku_asins = [sku.get('asin') for sku in self.sku_list]
+            for old_sku_obj in old_sku_objs:
+                if old_sku_obj.get('asin') not in new_sku_asins:
+                    old_sku_obj.set('is_instock', False)
+                    skus.append(old_sku_obj)
+
+        # 新建。
+        else:
+            skus = [Sku().set(sku) for sku in self.sku_list]
+            skus = [sku.set('spu', spu) for sku in skus]
+
         leancloud.Object.save_all(skus)
         print('SKU saved.')
+
+        # 保存历史价格，prime 属性及库存情况。
+        self.lc_save_sku_history(skus)
+        # 更新历史最高及最低价格。
+        self.check_history_price(skus)
+
+    # 保存历史价格，prime 属性及库存情况。
+    def lc_save_sku_history(self, skus):
+        lines = []
+        for sku in skus:
+            line = History()
+            line.set('sku', sku)
+            line.set('asin', sku.get('asin'))
+            line.set('price', sku.get('price'))
+            line.set('is_instock', sku.get('is_instock'))
+            line.set('is_prime', sku.get('is_prime'))
+            line.set('increment', sku.get('increment'))
+            line.set('change_rate', sku.get('change_rate'))
+            lines.append(line)
+        leancloud.Object.save_all(lines)
+
+    # 对比历史价格，记录历史最高及最低价格。
+    def check_history_price(self, skus):
+        for sku in skus:
+            price = sku.get('price')
+            lines = History.query\
+                .equal_to('sku', sku) \
+                .include('spu') \
+                .add_descending('updatedAt')\
+                .find()
+
+            prices  = [line.get('price') for line in lines]
+
+            try:
+                spu_max_price = self.spu.get('max_price')
+            except TypeError:
+                spu_max_price = Spu.query.equal_to('asin', self.spu.get('asin')).first().get('max_price')
+            off_to_spu = price / spu_max_price
+            top_price = max(prices)
+            bottom_price = min(prices)
+            is_top = price == top_price  # 历史新高
+            is_bottom = price == bottom_price  # 历史新低。
+
+            # 上一次记录价格。
+            if len(lines) == 1:
+                previous_price = price  # 未有记录。
+            elif len(lines) > 1:
+                previous_price = prices[1]  # 已有记录，排第二。
+            else:
+                # TODO: 提取成 exception。
+                print('There is something wrong with the SKU History.')
+                print('Please check ASIN: %s.' % sku.get('asin'))
+                continue
+
+            increment = price - previous_price  # 对比上一次记录的增量。
+            change_rate = increment / previous_price
+            history_increment = price - top_price  # 对比历史最高价的增量。
+            change_history_rate = history_increment / top_price
+
+            # 记录价格变化频率。
+            for line in lines:
+                change = line.get('increment', 0.0)
+                last_change = change  # 最近一次价格变化量。即最近一次非零的 increment。
+                last_change_rate = line.get('change_rate', 0.0)  # 最近一次价格变化率。
+                last_change_time = (
+                    lines[0].get('createdAt') - line.get('createdAt')
+                ).total_seconds()  # 对上一次更新价格持续的时间，单位为：秒。
+                # 一直查询至有增量变化记录为止。
+                if change:
+                    break
+
+            sku.set('top_price', top_price)
+            sku.set('bottom_price', bottom_price)
+            sku.set('is_top', is_top)
+            sku.set('is_bottom', is_bottom)
+            sku.set('increment', increment)
+            sku.set('change_rate', change_rate)
+            sku.set('history_increment', history_increment)
+            sku.set('change_history_rate', change_history_rate)
+            sku.set('last_change', last_change)
+            sku.set('last_change_rate', last_change_rate)
+            sku.set('last_change_time', last_change_time)
+            sku.set('off_to_spu', off_to_spu)
+        leancloud.Object.save_all(skus)
+
+
+def update_item(url=None, **kwargs):
+    if not url:
+        spu = Spu.query.add_ascending('updatedAt').first()
+        url = spu.get('url')
+    item = AmzProduct(url)
+    return {'spu': item.spu, 'skus': item.sku_list}
 
 
 def print_products(products):
@@ -340,7 +522,7 @@ def print_products(products):
 def get_html_doc(url):
     time.sleep(0.9)
     headers = {
-        'User-Agent': ua.random,
+        'User-Agent': user_agent,
         'Cookie': AMZ_COOKIE
     }
     response = requests.get(

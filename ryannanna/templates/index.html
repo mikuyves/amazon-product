@@ -1,0 +1,105 @@
+{% extends "layout.html" %}
+{% import "_macros.html" as macros %}
+
+{% block title %}所有{% endblock %}
+
+{% block page_content %}
+{% block content %}
+{% include 'navbar.html' %}
+
+  <div class="mt-3">
+    <div id="items">
+
+
+      <input type="search" class="search mb-3 form-control form-control-lg"
+             placeholder="Search from {{ items|length }} products.">
+      <div class="row" data-masonry='{ "itemSelector": ".col", "columnWidth":".col" }'>
+
+        {% macro get_img_url(item) %}
+          {{  item.hd_pics[0] if item.hd_pics else item.l_pic }}
+        {% endmacro %}
+        {% for item in items %}
+
+          <div class="col col-xs-12 col-sm-6 col-md-4 col-lg-4 col-xl-3 mb-3">
+            <div class="card mdui-card mdui-hoverable">
+              <img class="card-img-top" src="{{ get_img_url(item.spu) }}">
+              <div class="card-body">
+                <h4 class="brand card-title">{{ item.spu.brand }}</h4>
+                <p class="title card-text">{{ item.spu.name }}</p>
+                <p class="description card-text">
+                  <small class="text-muted"><em>¥{{ item.spu.min_price }} - ¥{{ item.spu.max_price }}</em></small>
+                </p>
+
+                {% for sku in item.skus %}
+                  <p class="card-text">
+                    <a href="{{ sku.detail_page_url }}" class="">
+                      <span class="card-text">{{ sku.name }} : ¥{{ sku.price }}</span>
+                    </a>
+                    {% if sku.is_new %}
+                      <span class="card-text" style="color: red;">
+                        NEW!
+                      </span>
+                    {% endif %}
+                    {% if not sku.is_prime %}
+                      <span class="card-text" style="color: blue;">
+                        NonP!
+                      </span>
+                    {% endif %}
+                    {% if not sku.is_instock %}
+                      <span class="card-text" style="color: darkslateblue;">
+                        缺货
+                      </span>
+                    {% endif %}
+                    {% if sku.last_change %}
+                      <span class="card-text" style="color: {{ 'red' if sku.last_change < 0 else 'green' }};">
+                                  ({{ '%+0.2f' | format(sku.last_change | float) }}元, {{'%+0.2f'| format(sku.last_change_rate * 100 |float)}}% )
+                              </span>
+                      <span>{{ '%0.0f' | format((sku.last_change_time / 60) | float) }}' ago</span>
+                    {% endif %}
+                  </p>
+                {% endfor %}
+
+                <footer>
+                  <p class="card-text">
+                    <small class="refresh_time text-muted">{{ item.refresh_time }}</small>
+                  </p>
+                  <a href="{{ url_for('index', comic_id=item.id) }}"
+                     class="btn btn-primary btn-sm">View</a>
+                </footer>
+
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+
+      </div>
+    </div>
+  </div>
+
+  {#  Page navigation#}
+  {% if pagination %}
+    <nav aria-label="Page navigation">
+      {{ macros.pagination_widget(pagination, 'index') }}
+    </nav>
+  {% endif %}
+
+{% endblock %}
+{% endblock %}
+
+
+{% block footer %} {{ super() }}
+  <script>
+      var options = {
+          valueNames: ['brand', 'title'],
+          listClass: 'row'
+      };
+      var list = new List('items', options);
+      list.on('updated', function () {
+          $('.row').masonry();
+      });
+
+      $('.row').imagesLoaded().progress(function () {
+          $('.row').masonry();
+      });
+  </script>
+{% endblock %}

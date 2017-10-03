@@ -41,6 +41,13 @@ leancloud.Object.save_all(sku_list)
 十分简单，保存后 prod 直接是一个有 id 的 leancloud 对象。
 不需要像 js 那样，赋值给一个变量再使用。
 
+返回 object 变 json 数据：
+```python
+import json
+
+json.dumps(object.dump())
+
+```
 
 
 Amazon Api
@@ -66,3 +73,10 @@ AmzProduct
 如果在初始化的过程中就获取，使得整个类的方法高耦合。
 所以，把获取详情（使用 api）和获取高清图片（使用 requests）抽离出来，不在初始化的时候处理。
 宁愿多花一次请求的时间，也应该将方法解耦出来。
+
+#### 问题
+ * [x] 没有 SKU 的单品，获取不了 hires pics。
+     * 原因：写错变量名。
+ 
+#### TODO
+* [ ] 检查，更新，SKU，与之前历史对比。
