@@ -450,10 +450,7 @@ class AmzProduct(object):
 
             prices  = [line.get('price') for line in lines]
 
-            try:
-                spu_max_price = self.spu.get('max_price')
-            except TypeError:
-                spu_max_price = Spu.query.equal_to('asin', self.spu.get('asin')).first().get('max_price')
+            spu_max_price = sku.get('spu').get('max_price')
             off_to_spu = price / spu_max_price
             top_price = max(prices)
             bottom_price = min(prices)
