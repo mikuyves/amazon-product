@@ -16,7 +16,7 @@ python-amazon-simple-product-api==2.2.11
 python-dateutil==2.6.1
 requests==2.18.4
 six==1.10.0
-urllib3==1.22
+urllib3==1.26.5
 xmltodict==0.11.0
 fake-useragent==0.1.7
 flask-bootstrap==3.3.7.1
